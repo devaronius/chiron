@@ -192,5 +192,15 @@ out=$(inst --target "$T4" --plan 2>&1)
 grep -q "Nothing to do" <<<"$out" && ok "rename followed without repeating --map" \
                                   || bad "rename followed without repeating --map"
 
+# A conflicted renamed file must keep its mapping, or the next run adds a second copy
+# under the upstream name beside the one the consumer renamed.
+printf '\n<!-- local tweak -->\n' >> "$T4/.claude/skills/cca-wiki-sync/SKILL.md"
+inst --target "$T4" --apply >/dev/null 2>&1
+out=$(inst --target "$T4" --plan 2>&1)
+check "conflicted rename → CONFLICT, not ADD" "$(sect "$out" CONFLICT 'cca-wiki-sync')" "1"
+check "no duplicate under the upstream name"  "$(sect "$out" ADD 'skills/wiki-sync')"    "0"
+if [ -e "$T4/.claude/skills/wiki-sync" ]
+  then bad "upstream name still not created"; else ok "upstream name still not created"; fi
+
 printf '\n\033[1mResult:\033[0m %d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ] || exit 1

@@ -343,6 +343,18 @@ def apply_plan(target: Path, vault_prefix: str, tokens: dict, briefing: str,
         elif a["action"] == "retire":
             dest.unlink(missing_ok=True)
             files.pop(a["dest"], None)
+        elif a["action"] in ("conflict", "review") and a["src"] in by_src:
+            # We are not writing this file, but the local NAME still has to be remembered:
+            # without it the next run looks for the upstream name, finds nothing, and adds a
+            # second copy alongside the one the consumer renamed.
+            #
+            # Deliberately no sha256. Recording the current (edited) hash would make the
+            # file read as "unchanged since install" next time, and the upgrade after that
+            # would overwrite the very edit this action exists to protect.
+            item = by_src[a["src"]]
+            if a["dest"] != item.dest:
+                entry = files.setdefault(item.dest, {})
+                entry.update(cls=item.cls, src=item.src, installedAs=a["dest"])
 
     # Record every in-sync file too, so the next run has the third fact for all of them.
     for item in payload(vault_prefix, seed_dests):
