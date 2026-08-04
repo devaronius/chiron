@@ -517,8 +517,6 @@ def main() -> int:
                   [dict(a, action="conflict", note="present upstream, missing here")
                    for a in actions if a["action"] == "add"]
 
-    writable = [a for a in actions if a["action"] in ("add", "update", "retire")]
-
     if args.json:
         print(json.dumps({"chironVersion": version(), "mode": mode,
                           "vaultRoot": vault_prefix.rstrip("/") or ".",
@@ -526,9 +524,9 @@ def main() -> int:
                           "actions": actions}, indent=2))
         return 1 if any(a["action"] in ("conflict", "review", "keep") for a in actions) else 0
 
-    if args.apply and mode == "verify" and not writable:
-        return report(mode, actions, migrations, applied=False)
-
+    # No verify-mode short-circuit: with nothing writable, apply_plan only recomputes the
+    # manifest, and that is sometimes exactly the repair needed — a --map given on a run
+    # whose file came out CONFLICT has no other way to be recorded.
     if args.apply:
         new_manifest = apply_plan(target, vault_prefix, tokens, briefing,
                                   actions, migrations, manifest)
