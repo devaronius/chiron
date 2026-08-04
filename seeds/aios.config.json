@@ -1,0 +1,9 @@
+{
+  "briefingNote": "{{BRIEFING_NOTE}}",
+  "rootNotes": [],
+  "wikiSkillName": "{{WIKI_SKILL}}",
+  "vaultAtRepoRoot": {{VAULT_AT_REPO_ROOT}},
+  "codeVocabulary": [],
+  "captureKeywords": {},
+  "code": {}
+}
