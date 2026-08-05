@@ -1,0 +1,40 @@
+{
+  "name": "chiron",
+  "description": "A library of agent skills. The one it's named for installs a portable ideaVerse — an Obsidian-style knowledge vault, the tooling that keeps it honest, and the skills that use it — into any repo, and upgrades it in place. The rest need no vault.",
+  "owner": {
+    "name": "devaronius",
+    "url": "https://github.com/devaronius"
+  },
+  "plugins": [
+    {
+      "name": "chiron",
+      "displayName": "chiron",
+      "source": "./",
+      "description": "Install, adopt, upgrade or verify a chiron ideaVerse in any repo — the ACE vault, the aiOS operating layer, a compiled concept wiki, and the vault skills. Shows a plan before it writes, and never overwrites a file you edited.",
+      "version": "1.1.0",
+      "author": { "name": "devaronius" },
+      "homepage": "https://github.com/devaronius/chiron",
+      "repository": "https://github.com/devaronius/chiron",
+      "license": "Apache-2.0",
+      "category": "knowledge-management",
+      "keywords": ["knowledge-base", "obsidian", "documentation", "vault", "wiki"],
+      "skills": ["./skills/knowledge/bootstrap-ideaverse"],
+      "strict": false
+    },
+    {
+      "name": "chiron-productivity",
+      "displayName": "chiron productivity",
+      "source": "./",
+      "description": "Grilling: a relentless one-question-at-a-time interview that stress-tests a plan or design before you build it. Works in any repo, with or without an ideaVerse.",
+      "version": "1.1.0",
+      "author": { "name": "devaronius" },
+      "homepage": "https://github.com/devaronius/chiron",
+      "repository": "https://github.com/devaronius/chiron",
+      "license": "Apache-2.0",
+      "category": "productivity",
+      "keywords": ["planning", "design-review", "interview", "thinking"],
+      "skills": ["./skills/productivity"],
+      "strict": false
+    }
+  ]
+}

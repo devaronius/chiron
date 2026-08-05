@@ -7,6 +7,38 @@ unit** — `VERSION` covers everything under `aiOS/`, `seeds/` and `skills/`. Se
 - **minor** — new files, skills or templates; backward compatible
 - **patch** — fixes to existing files
 
+## [1.1.0] — 2026-08-05
+
+### Added
+- `.claude-plugin/marketplace.json` — chiron is now a Claude Code plugin marketplace, so
+  anyone can `/plugin marketplace add devaronius/chiron` and install from it. Two plugins:
+  **`chiron`** (the `bootstrap-ideaverse` installer skill) and **`chiron-productivity`** (the
+  grilling skills, useful with or without a vault). Both entries use `"source": "./"` with
+  `"strict": false` and name their own skill directories, so no `plugin.json` lives under
+  `skills/`. The vault skills stay out of the marketplace on purpose: the installer writes
+  them into each repo as managed files, and a global plugin copy would shadow that with an
+  unmanaged second one. Plugin skills are namespaced — `/chiron:bootstrap-ideaverse`.
+- `chiron-release.py` pins every marketplace plugin entry to `VERSION` on release, and
+  `--check` fails when one has drifted. The entry's `version` gates whether installed plugins
+  see an update at all, so a stale one strands users on the version they first installed.
+- `skills/productivity/grill-me` and `skills/productivity/grill-with-docs` — thin wrappers
+  that start a `grilling` session, the second one capturing what the interview settles as
+  ideaVerse notes via `domain-modeling`. Both are user-invoked only
+  (`disable-model-invocation: true`).
+
+### Changed
+- `skills/` now files skills by category: `skills/knowledge/<name>/` for the vault skills,
+  `skills/productivity/<name>/` for `grilling` and its wrappers.
+  Purely a payload-side layout change — skills still install flat as
+  `.claude/skills/<name>/`, because that is where Claude Code discovers them. Nothing moves
+  in a consumer repo and no migration is needed.
+- `chiron-install.py` finds a skill by the presence of its `SKILL.md` at any depth under
+  `skills/`, and flattens the category away on install; `chiron-release.py` reuses that same
+  walk. `--map` SRC now includes the category — `--map
+  skills/knowledge/wiki-sync=.claude/skills/cca-wiki-sync`.
+- `.chiron-hashes.json` history rekeyed to the new payload paths, so a vault installed
+  before this release still adopts and upgrades as pristine.
+
 ## [1.0.0] — 2026-08-04
 
 First release. Harvested from the ChainCargo Mobile App vault, where the framework grew,

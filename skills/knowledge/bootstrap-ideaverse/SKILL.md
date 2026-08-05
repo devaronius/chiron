@@ -87,7 +87,8 @@ python3 ~/.chiron/tools/chiron-install.py --target "$REPO" --apply \
 ```
 
 Use `--map SRC=DEST` when a consumer has renamed something chiron ships — e.g.
-`--map skills/wiki-sync=.claude/skills/cca-wiki-sync`. The rename is recorded in the
+`--map skills/knowledge/wiki-sync=.claude/skills/cca-wiki-sync`. SRC is the payload path in
+the chiron checkout, category folder included. The rename is recorded in the
 manifest so every later upgrade follows it instead of re-adding the original name.
 
 ## Step 5 — Verify, and never launder drift

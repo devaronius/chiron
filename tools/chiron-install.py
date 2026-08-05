@@ -24,6 +24,8 @@ shipped for a path.
 Two file classes, distinguished structurally by which payload directory they come from:
 
   managed   aiOS/** and skills/**  — no install tokens, hashes compare directly upstream
+                                     (`skills/<category>/<skill>/` installs flat, as
+                                     `.claude/skills/<skill>/`)
                                      to disk, upgraded automatically while untouched
   seeded    seeds/**               — rendered once from project facts, then yours; never
                                      overwritten again, only reported when upstream moves
@@ -35,7 +37,8 @@ Usage:
   chiron-install.py --target DIR --apply --vault-root docs \
       --project-name "Acme Checkout" --project-domain "..." --roles "Dev,QA"
   chiron-install.py --target DIR --apply --at-repo-root
-  chiron-install.py --target DIR --plan --map skills/wiki-sync=.claude/skills/cca-wiki-sync
+  chiron-install.py --target DIR --plan \
+      --map skills/knowledge/wiki-sync=.claude/skills/cca-wiki-sync
 
 Exit codes:
   0 — plan/apply completed with nothing needing a human
@@ -63,7 +66,8 @@ SKILLS_DEST = ".claude/skills"
 AGENTS_DEST = ".claude/agents"
 
 # The installer itself is user-level (`~/.claude/skills/`), one copy for every repo — a
-# per-repo copy is what let the old skill drift from its own payload.
+# per-repo copy is what let the old skill drift from its own payload. Matched on the skill's
+# own directory name, not its category path.
 SKILLS_NOT_INSTALLED = {"bootstrap-ideaverse"}
 
 # Never treated as payload, even though they sit in aiOS/.
@@ -116,6 +120,20 @@ def render(text: str, tokens: dict) -> str:
     return text
 
 
+def skill_dirs() -> list[Path]:
+    """Every skill directory under `skills/`, however deeply it is filed.
+
+    A skill is a directory holding a `SKILL.md`; the directories above it are categories
+    (`skills/knowledge/wiki-sync`) that exist for chiron's own filing and are flattened away
+    on install — Claude Code discovers skills at `.claude/skills/<name>/SKILL.md`, so the
+    category never reaches the consumer.
+    """
+    root = CHIRON_ROOT / "skills"
+    if not root.is_dir():
+        return []
+    return sorted(p.parent for p in root.rglob("SKILL.md") if p.is_file())
+
+
 def walk(root: Path) -> list[Path]:
     """Every file under root, skipping caches and the unmanaged escape hatch."""
     out = []
@@ -151,15 +169,13 @@ def payload(vault_prefix: str, seed_dests: dict) -> list[Item]:
         rel = p.relative_to(CHIRON_ROOT).as_posix()
         items.append(Item(rel, f"{vault_prefix}{rel}", "managed"))
 
-    skills_root = CHIRON_ROOT / "skills"
-    if skills_root.is_dir():
-        for d in sorted(x for x in skills_root.iterdir() if x.is_dir()):
-            if d.name in SKILLS_NOT_INSTALLED:
-                continue
-            for p in walk(d):
-                rel = p.relative_to(CHIRON_ROOT).as_posix()
-                inner = p.relative_to(d).as_posix()
-                items.append(Item(rel, f"{SKILLS_DEST}/{d.name}/{inner}", "managed"))
+    for d in skill_dirs():
+        if d.name in SKILLS_NOT_INSTALLED:
+            continue
+        for p in walk(d):
+            rel = p.relative_to(CHIRON_ROOT).as_posix()
+            inner = p.relative_to(d).as_posix()
+            items.append(Item(rel, f"{SKILLS_DEST}/{d.name}/{inner}", "managed"))
 
     for p in walk(CHIRON_ROOT / "seeds"):
         rel = p.relative_to(CHIRON_ROOT).as_posix()
@@ -193,7 +209,7 @@ def remap(item: Item, mapping: dict) -> str:
     """Apply a --map override to one payload file.
 
     Matches a whole directory as well as a single file, because the renames that actually
-    happen are directory-level: a consumer renames the skill `wiki-sync` to
+    happen are directory-level: a consumer renames the skill `skills/knowledge/wiki-sync` to
     `cca-wiki-sync`, not each file inside it.
     """
     if item.src in mapping:
@@ -363,6 +379,11 @@ def apply_plan(target: Path, vault_prefix: str, tokens: dict, briefing: str,
         if d.exists() and item.dest not in files:
             files[item.dest] = dict(sha256=sha(d.read_bytes()), shipped=version(),
                                     cls=item.cls, src=item.src)
+        elif rec is not None:
+            # Where the file came from is chiron's fact, not the consumer's, so refresh it
+            # even when the file itself is untouched: a payload path that moved upstream
+            # would otherwise sit in the manifest pointing at nothing forever.
+            rec["src"] = item.src
 
     return {
         "chironVersion": version(),

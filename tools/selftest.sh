@@ -21,6 +21,13 @@ WORK="$(mktemp -d "${TMPDIR:-/tmp}/chiron-selftest.XXXXXX")"
 KEEP=0
 [ "${1:-}" = "--keep" ] && KEEP=1
 
+# The upgrade fixtures must sit ABOVE whatever this checkout ships, or "upgrade" is
+# indistinguishable from "verify" and scenario 4 tests nothing. Derived, never hardcoded:
+# chiron's own version keeps moving, and a fixture pinned to a number it has since reached
+# fails as a passing test that stopped exercising its own path.
+NEXT=$(python3 -c "import re,sys;a,b,_=(list(map(int,re.findall(r'\d+',sys.argv[1])))+[0,0,0])[:3];print(f'{a}.{b+1}.0')" "$(cat "$CHIRON/VERSION")")
+NEXT2=$(python3 -c "import re,sys;a,b,_=(list(map(int,re.findall(r'\d+',sys.argv[1])))+[0,0,0])[:3];print(f'{a}.{b+2}.0')" "$(cat "$CHIRON/VERSION")")
+
 PASS=0; FAIL=0
 ok   () { PASS=$((PASS+1)); printf '    \033[32m✓\033[0m %s\n' "$1"; }
 bad  () { FAIL=$((FAIL+1)); printf '    \033[31m✗\033[0m %s\n' "$1"; }
@@ -81,23 +88,23 @@ check "second apply exits 0"         "$rc" "0"
 grep -q "Nothing to do" <<<"$out" && ok "second apply reports nothing to do" \
                                   || bad "second apply reports nothing to do"
 
-# ── fake 1.1.0 (add / change / rename / retire) ───────────────
-FAKE="$WORK/chiron-1.1.0"
+# ── fake next-minor (add / change / rename / retire) ──────────
+FAKE="$WORK/chiron-$NEXT"
 mkdir -p "$FAKE"
 ( cd "$CHIRON" && tar cf - --exclude=./.git --exclude=./.git/* . ) | ( cd "$FAKE" && tar xf - )
-printf '# added in 1.1.0\n' > "$FAKE/aiOS/templates/new-thing.template.md"
-printf '\n# changed in 1.1.0\n' >> "$FAKE/aiOS/scripts/note-review.py"
+printf '# added in %s\n' "$NEXT" > "$FAKE/aiOS/templates/new-thing.template.md"
+printf '\n# changed in %s\n' "$NEXT" >> "$FAKE/aiOS/scripts/note-review.py"
 mv "$FAKE/aiOS/templates/schedule.template.md" "$FAKE/aiOS/templates/routine.template.md"
 rm -f "$FAKE/aiOS/templates/api-note.template.md"
-cat > "$FAKE/migrations.json" <<'JSON'
-[{"version": "1.1.0",
+cat > "$FAKE/migrations.json" <<JSON
+[{"version": "$NEXT",
   "renames": [["{vault}/aiOS/templates/schedule.template.md",
                "{vault}/aiOS/templates/routine.template.md"]],
   "retires": ["{vault}/aiOS/templates/api-note.template.md"],
   "note": "selftest fixture"}]
 JSON
-printf '# Changelog\n\n## [1.1.0] — selftest fixture\n' > "$FAKE/CHANGELOG.md"
-python3 "$FAKE/tools/chiron-release.py" --set 1.1.0 >/dev/null || bad "fixture release failed"
+printf '# Changelog\n\n## [%s] — selftest fixture\n' "$NEXT" > "$FAKE/CHANGELOG.md"
+python3 "$FAKE/tools/chiron-release.py" --set "$NEXT" >/dev/null || bad "fixture release failed"
 UP () { python3 "$FAKE/tools/chiron-install.py" "$@"; }
 
 # ── 3. adopt ──────────────────────────────────────────────────
@@ -137,12 +144,12 @@ grep -q "mode: upgrade" <<<"$out" && ok "detected upgrade mode" || bad "detected
 check "new file → ADD"         "$(sect "$out" ADD      'new-thing.template.md')" "1"
 check "changed file → UPDATE"  "$(sect "$out" UPDATE   'note-review.py')"        "1"
 check "edited file → CONFLICT" "$(sect "$out" CONFLICT 'vault-lint.py')"         "1"
-grep -q "1.1.0: 1 rename(s), 1 retire(s)" <<<"$out" && ok "migrations listed in plan" \
-                                                    || bad "migrations listed in plan"
+grep -q "$NEXT: 1 rename(s), 1 retire(s)" <<<"$out" && ok "migrations listed in plan" \
+                                                   || bad "migrations listed in plan"
 
 UP --target "$T3" --apply >/dev/null 2>&1
 [ -f "$T3/docs/aiOS/templates/new-thing.template.md" ] && ok "added file written" || bad "added file written"
-grep -q "changed in 1.1.0" "$T3/docs/aiOS/scripts/note-review.py" \
+grep -q "changed in $NEXT" "$T3/docs/aiOS/scripts/note-review.py" \
   && ok "changed file updated" || bad "changed file updated"
 [ -f "$T3/docs/aiOS/templates/routine.template.md" ] && ok "rename landed at new path" \
                                                       || bad "rename landed at new path"
@@ -150,9 +157,9 @@ if [ -e "$T3/docs/aiOS/templates/schedule.template.md" ]
   then bad "rename left nothing at the old path"; else ok "rename left nothing at the old path"; fi
 if [ -e "$T3/docs/aiOS/templates/api-note.template.md" ]
   then bad "pristine file retired"; else ok "pristine file retired"; fi
-check "manifest now at 1.1.0" \
+check "manifest now at $NEXT" \
   "$(python3 -c "import json;print(json.load(open('$T3/docs/aiOS/.chiron-install.json'))['chironVersion'])")" \
-  "1.1.0"
+  "$NEXT"
 
 # ── 5. conflict ───────────────────────────────────────────────
 head1 "5. conflict — a locally edited managed file is sacred"
@@ -167,12 +174,12 @@ grep -q "CONFLICT" <<<"$out" && ok "conflict still reported after apply" \
 # a file the user edited must survive its own retirement
 printf '\n# mine too\n' >> "$T3/docs/aiOS/templates/day-note.runbook.md"
 rm -f "$FAKE/aiOS/templates/day-note.runbook.md"
-cat > "$FAKE/migrations.json" <<'JSON'
-[{"version": "1.2.0", "retires": ["{vault}/aiOS/templates/day-note.runbook.md"],
+cat > "$FAKE/migrations.json" <<JSON
+[{"version": "$NEXT2", "retires": ["{vault}/aiOS/templates/day-note.runbook.md"],
   "note": "retire a file the user edited"}]
 JSON
-printf '# Changelog\n\n## [1.2.0] — selftest fixture\n' > "$FAKE/CHANGELOG.md"
-python3 "$FAKE/tools/chiron-release.py" --set 1.2.0 >/dev/null
+printf '# Changelog\n\n## [%s] — selftest fixture\n' "$NEXT2" > "$FAKE/CHANGELOG.md"
+python3 "$FAKE/tools/chiron-release.py" --set "$NEXT2" >/dev/null
 out=$(UP --target "$T3" --plan 2>&1)
 check "modified retire → KEEP" "$(sect "$out" KEEP 'day-note.runbook.md')" "1"
 UP --target "$T3" --apply >/dev/null 2>&1
@@ -183,7 +190,7 @@ UP --target "$T3" --apply >/dev/null 2>&1
 head1 "6. --map — a consumer's own name is followed, not overwritten"
 T4=$(new_repo remap)
 inst --target "$T4" --apply --project-name "Renamed" \
-     --map skills/wiki-sync=.claude/skills/cca-wiki-sync >/dev/null
+     --map skills/knowledge/wiki-sync=.claude/skills/cca-wiki-sync >/dev/null
 [ -f "$T4/.claude/skills/cca-wiki-sync/SKILL.md" ] && ok "skill installed under the local name" \
                                                     || bad "skill installed under the local name"
 if [ -e "$T4/.claude/skills/wiki-sync" ]
@@ -198,7 +205,7 @@ printf '\n<!-- local tweak -->\n' >> "$T4/.claude/skills/cca-wiki-sync/SKILL.md"
 inst --target "$T4" --apply >/dev/null 2>&1
 out=$(inst --target "$T4" --plan 2>&1)
 check "conflicted rename → CONFLICT, not ADD" "$(sect "$out" CONFLICT 'cca-wiki-sync')" "1"
-check "no duplicate under the upstream name"  "$(sect "$out" ADD 'skills/wiki-sync')"    "0"
+check "no duplicate under the upstream name"  "$(sect "$out" ADD '.claude/skills/wiki-sync')" "0"
 if [ -e "$T4/.claude/skills/wiki-sync" ]
   then bad "upstream name still not created"; else ok "upstream name still not created"; fi
 

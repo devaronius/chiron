@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-chiron-release — cut a chiron release: bump VERSION, refresh the shipped-hash history,
-and check that the CHANGELOG actually documents it.
+chiron-release — cut a chiron release: bump VERSION, refresh the shipped-hash history, pin
+the plugin marketplace to the same number, and check that the CHANGELOG documents it.
 
 Not payload. Lives in `tools/`, never copied into a consumer vault.
 
@@ -42,6 +42,7 @@ CHIRON_ROOT = Path(__file__).resolve().parents[1]
 HASHES_PATH = CHIRON_ROOT / ".chiron-hashes.json"
 VERSION_PATH = CHIRON_ROOT / "VERSION"
 CHANGELOG_PATH = CHIRON_ROOT / "CHANGELOG.md"
+MARKETPLACE_PATH = CHIRON_ROOT / ".claude-plugin" / "marketplace.json"
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from importlib.machinery import SourceFileLoader  # noqa: E402
@@ -68,10 +69,8 @@ def payload_paths() -> list[str]:
         d = CHIRON_ROOT / name
         if d.is_dir():
             out += [p.relative_to(CHIRON_ROOT).as_posix() for p in _installer.walk(d)]
-    skills = CHIRON_ROOT / "skills"
-    if skills.is_dir():
-        for sd in sorted(x for x in skills.iterdir() if x.is_dir()):
-            out += [p.relative_to(CHIRON_ROOT).as_posix() for p in _installer.walk(sd)]
+    for sd in _installer.skill_dirs():
+        out += [p.relative_to(CHIRON_ROOT).as_posix() for p in _installer.walk(sd)]
     return sorted(out)
 
 
@@ -89,6 +88,26 @@ def record(label: str, root: Path, rel_paths: list[str] | None = None) -> tuple[
     return added, skipped
 
 
+def marketplace_versions(v: str) -> list[str]:
+    """Pin every marketplace plugin entry to `v`; returns the names that moved.
+
+    A plugin entry's `version` is what decides whether an installed plugin sees an update at
+    all, so a stale one silently strands every user on the version they first installed. It
+    is the same release, so it carries the same number: chiron is versioned as one unit.
+    """
+    if not MARKETPLACE_PATH.is_file():
+        return []
+    data = _installer.read_json(MARKETPLACE_PATH, {})
+    moved = []
+    for entry in data.get("plugins", []):
+        if entry.get("version") != v:
+            entry["version"] = v
+            moved.append(entry.get("name", "?"))
+    if moved:
+        MARKETPLACE_PATH.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    return moved
+
+
 def check(v: str) -> int:
     history = _installer.read_json(HASHES_PATH, {})
     stale = []
@@ -96,6 +115,13 @@ def check(v: str) -> int:
         want = sha((CHIRON_ROOT / rel).read_bytes())
         if history.get(rel, {}).get(v) != want:
             stale.append(rel)
+    unpinned = [e.get("name", "?") for e in
+                _installer.read_json(MARKETPLACE_PATH, {}).get("plugins", [])
+                if e.get("version") != v]
+    if unpinned:
+        print(f"✗ marketplace plugin(s) not at {v}: {', '.join(unpinned)}")
+        print("   run: chiron-release.py --set " + v)
+        return 1
     if stale:
         print(f"✗ {len(stale)} payload file(s) not recorded at {v}:")
         for s in stale[:20]:
@@ -149,8 +175,11 @@ def main() -> int:
         return 1
 
     VERSION_PATH.write_text(new + "\n", encoding="utf-8")
+    pinned = marketplace_versions(new)
     added, _ = record(new, CHIRON_ROOT)
     print(f"✓ VERSION → {new}; recorded {added} payload file(s) in .chiron-hashes.json")
+    if pinned:
+        print(f"  pinned marketplace plugin(s) to {new}: {', '.join(pinned)}")
     print(f"  next: git commit -am 'chore: release {new}' && git tag v{new}")
     return 0
 
