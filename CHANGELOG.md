@@ -7,6 +7,31 @@ unit** — `VERSION` covers everything under `aiOS/`, `seeds/` and `skills/`. Se
 - **minor** — new files, skills or templates; backward compatible
 - **patch** — fixes to existing files
 
+## [1.1.1] — 2026-09-16
+
+### Changed
+- **"Configure, don't edit" no longer reads as "never edit a framework file."** The rule
+  overstated its own cost and was stranding project knowledge. Editing a framework file
+  **loses nothing** — the installer marks it CONFLICT and never overwrites it. What a
+  consumer actually gives up is *future upstream updates to that one file*.
+
+  The distinction that matters is prose vs behaviour, not framework vs project:
+
+  - **Prose** — agent runbooks, templates, the maps — is where a project's own knowledge
+    legitimately belongs. Editing it is expected, and the CONFLICT is the point: it is how
+    local content survives an upgrade.
+  - **Behaviour** — anything under `aiOS/scripts/` — should stay byte-identical, because an
+    edited script forks permanently from upstream bug fixes. `aios.config.json` and
+    `scripts/local/` remain the right homes for project-specific behaviour.
+
+  Found in a consumer vault: a shipped effort's durable content had no home because its
+  natural target was a `managed` agent runbook, and the rule read as a prohibition. The
+  knowledge stayed in a note nobody would look in. Reworded in `README.md`, the
+  `bootstrap-ideaverse` guardrails, and the three seeds that repeat it
+  (`project-brief.md`, `vault-root.CLAUDE.md`, `maps/skill-map.md`).
+- `seeds/vault-root.CLAUDE.md` now warns that `vault-report.py` **replaces** its judgment
+  section, so it should not be run while unrecorded librarian proposals are standing there.
+
 ## [1.1.0] — 2026-08-05
 
 ### Added

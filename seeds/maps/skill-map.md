@@ -94,7 +94,7 @@ The librarian is a **subagent**, not a skill — delegate to it rather than load
 | `open-items.py` | *(day-note runbook)* | Regenerates `open-items.md`. Run after changing any `[status::]`. Never edit the ledger by hand. |
 | `vault-report.py` | *(librarian agent)* | **Aggregator, not another check.** Rolls the tools above into `vault-report.md` and adds the aiOS invariants (skill-map completeness + its Invoke column, dead absolute paths in `aiOS/`). Section 6 is left for the agent's judgment; every run rewrites the file. Optional tools that aren't installed cost their section, not the report. |
 
-Project-specific behaviour comes from `aiOS/aios.config.json`, never from editing a script — an edited script stops being upgradeable.
+Project-specific *behaviour* comes from `aiOS/aios.config.json`, never from editing a script — an edited script forks permanently from upstream bug fixes. Framework **prose** (runbooks, templates, these maps) is a different case: edit it freely. It becomes CONFLICT and is never overwritten; the only cost is upstream updates to that file.
 
 Two facts about wikilink resolution that repeatedly cause wrong conclusions:
 

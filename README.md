@@ -175,10 +175,16 @@ Two file classes, distinguished by which directory they ship from:
   upstream moves, you get a diff and a merge, never an overwrite. The maps live here, which
   is why your own routing rules survive every upgrade.
 
-**Configure, don't edit.** Everything project-specific — the briefing note's name, the wiki
-skill's name, capture vocabulary, repo-root mode — is in `aiOS/aios.config.json`. Editing a
-script instead turns it into a permanent conflict. Project-specific scripts belong in
-`aiOS/scripts/local/`, which the installer never manages.
+**Configure behaviour; edit prose freely.** Everything project-specific about *how chiron
+runs* — the briefing note's name, the wiki skill's name, capture vocabulary, repo-root mode —
+is in `aiOS/aios.config.json`. Editing a **script** instead forks it permanently from upstream
+bug fixes, so project-specific scripts belong in `aiOS/scripts/local/`, which the installer
+never manages.
+
+Editing a framework **prose** file — an agent runbook, a template, a map — is a different
+matter, and it is fine. Nothing is lost: the file becomes a CONFLICT and is never overwritten.
+You give up automatic upstream updates to that one file, and you gain a home for knowledge
+that would otherwise be stranded somewhere less findable. That trade is usually worth it.
 
 ## Repo layout
 

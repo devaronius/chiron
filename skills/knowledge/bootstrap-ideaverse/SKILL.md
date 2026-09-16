@@ -153,10 +153,16 @@ and why. Then suggest the next step rather than taking it:
 - **Show the plan before writing.** Every mode, every time.
 - **CONFLICT files are never touched.** If the user wants one reset, they ask for it explicitly.
 - **`wiki/` is generated.** Never hand-edit it; never `--update` outside a fresh install.
-- **Configure, don't edit.** Project-specific behaviour belongs in `aiOS/aios.config.json`;
-  scripts stay byte-identical to upstream so they can keep being upgraded. An edited script
-  becomes a permanent CONFLICT. Project-specific scripts go in `aiOS/scripts/local/`, which
-  the installer never manages.
+- **Editing a framework file is allowed and loses nothing** — it becomes CONFLICT and is
+  never overwritten. What it costs is *future* upstream updates to that file, which become
+  the consumer's to merge. Say it that way when asked; "don't edit the framework" is wrong
+  and it strands project knowledge in the wrong place.
+  - **Prose** — agent runbooks, templates, the maps — is where a project's own knowledge
+    legitimately lands. Editing it is expected.
+  - **Behaviour** — anything in `aiOS/scripts/` — should stay byte-identical, because an
+    edited script forks permanently from upstream bug fixes. Put project-specific behaviour
+    in `aiOS/aios.config.json`, and project-specific scripts in `aiOS/scripts/local/`,
+    which the installer never manages.
 - **This skill is user-level.** It belongs in `~/.claude/skills/`, one copy for every repo.
   Do not commit it into a target repo — a per-repo copy is exactly how the previous version
   of this skill drifted from its own payload.
