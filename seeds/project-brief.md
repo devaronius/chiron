@@ -27,7 +27,7 @@ note sits in). Read this first, then follow it to the two maps below.
 - **Skills first.** Before any non-trivial request, check the [skill-map](aiOS/maps/skill-map.md) for a matching skill and use it instead of improvising — this is how the ideaVerse becomes powerful.
 - **The wiki is generated, never hand-edited.** `wiki/` is a compiled summary of the vault sources. To change it, edit the best-fit vault source (or create one in the right place per the [vault-map](aiOS/maps/vault-map.md)), then run the **`{{WIKI_SKILL}}`** skill — never write to `wiki/` by hand. Query `wiki/index.md` + `wiki/wiki.catalog.jsonl` before opening broad context.
 - **Code is the final authority.** The vault and wiki summarize the system; when a note disagrees with the code, trust the code and flag the drift.
-- **Configure, don't edit.** Framework files under `aiOS/` come from [chiron](https://github.com/devaronius/chiron) and are upgraded in place. Project-specific behaviour goes in `aiOS/aios.config.json`; an edited script stops being upgradeable.
+- **Configure behaviour; edit prose freely.** Framework files under `aiOS/` come from [chiron](https://github.com/devaronius/chiron). Editing one loses nothing — it is marked CONFLICT and never overwritten — you only stop receiving upstream updates to that file. So put project knowledge in the prose (runbooks, templates, maps) where it belongs, and keep *behaviour* in `aiOS/aios.config.json` or `aiOS/scripts/local/` so scripts stay upgradeable.
 
 {{ROLES_SECTION}}
 
