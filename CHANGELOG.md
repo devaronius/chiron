@@ -7,6 +7,23 @@ unit** — `VERSION` covers everything under `aiOS/`, `seeds/` and `skills/`. Se
 - **minor** — new files, skills or templates; backward compatible
 - **patch** — fixes to existing files
 
+## [Unreleased]
+
+### Fixed
+- `research-capture.py exists` compared basenames with exact equality
+  (`note["basename"].lower() == term.lower()`). Vault basenames are snake_case, so that
+  branch **never fired for a term anybody would actually type** — `exists "person identity"`
+  matched only by title and alias, and the literal filename was the sole way to reach it.
+  The subcommand advertises *"matches basename, first heading and aliases"*: two working axes
+  out of three. Basenames now compare after folding separators, so `person identity`,
+  `person_identity` and `Person-Identity` are one term. Title and alias matching are
+  unchanged and stay substring — they are prose, and a caller searching `personRefId` should
+  still find *"Person identity — what personRefId is"*; that looser reach is what lets the
+  basename axis stay exact-after-normalising without costing recall.
+- `research-capture.py exists` reported a note **once per matching axis**, so a note hit on
+  basename, title and alias printed three times and `Found N match(es)` counted hits rather
+  than notes. Results are now one line per note listing every axis that matched.
+
 ## [1.1.0] — 2026-08-05
 
 ### Added
