@@ -144,23 +144,46 @@ def suggest_location(text: str) -> dict[str, int]:
 
 # ── exists ─────────────────────────────────────────────────────
 
+def _normalise(text: str) -> str:
+    """Fold separators so `person identity` and `person_identity` are one term."""
+    return re.sub(r"[\s_-]+", " ", text.strip().lower())
+
+
 def check_existing_term(term: str) -> list[str]:
-    results = []
+    """Notes already covering `term`, one line each, listing every axis that hit.
+
+    Basenames are compared **after normalising separators**. Vault basenames are
+    snake_case, so exact equality never fired for a term anybody would actually
+    type — only for the literal filename. Title and alias stay substring matches:
+    they are prose, and a caller searching `personRefId` should find
+    `# Person identity — what personRefId is`. That looser reach is why the
+    basename axis can stay exact-after-normalising without costing recall.
+    """
     low = term.lower()
+    wanted = _normalise(term)
+    hits: dict[str, list[str]] = {}
+
+    def record(rel: str, reason: str) -> None:
+        reasons = hits.setdefault(rel, [])
+        if reason not in reasons:
+            reasons.append(reason)
+
     for note in V.load_notes():
         rel = note["path"]
-        if note["basename"].lower() == low:
-            results.append(f"{rel} (basename match)")
+        if _normalise(note["basename"]) == wanted:
+            record(rel, "basename match")
         m = re.search(r"^#\s+(.+)$", note["body"], re.MULTILINE)
         if m and low in m.group(1).lower():
-            results.append(f"{rel} (title match: '{m.group(1).strip()}')")
+            record(rel, f"title match: '{m.group(1).strip()}'")
         aliases = note["frontmatter"].get("aliases", [])
         if isinstance(aliases, str):
             aliases = [aliases]
         for alias in aliases:
             if alias and low in str(alias).lower():
-                results.append(f"{rel} (alias match: '{alias}')")
-    return results
+                record(rel, f"alias match: '{alias}'")
+
+    # One line per note, not per axis — the count then reads as "notes found".
+    return [f"{rel} ({'; '.join(reasons)})" for rel, reasons in hits.items()]
 
 
 # ── Main ───────────────────────────────────────────────────────
