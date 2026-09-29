@@ -209,6 +209,13 @@ The framework is versioned as **one unit**: `VERSION` covers all three payload d
 
 ### Contributing / releasing
 
+Commit and PR titles are **`type(ticket): summary`** — the issue number with no `#`, since
+GitHub appends the PR number itself on squash merge. Types: `feat` · `fix` · `refactor` ·
+`docs` · `build` · `chore` · `test`. No issue? Use an area scope (`docs(readme):`) or drop the
+scope; don't invent a number. Rebase onto `main` rather than merging it in, so a PR shows only
+its own work. `CLAUDE.md` carries these in full, and `.github/PULL_REQUEST_TEMPLATE.md`
+applies automatically.
+
 ```bash
 bash tools/selftest.sh                       # must be green before anything else
 claude plugin validate .                     # marketplace + plugin entries
