@@ -1,4 +1,5 @@
 ---
+kind: <domain | behaviour>
 up: []
 tags: []
 related: []

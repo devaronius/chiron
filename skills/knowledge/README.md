@@ -4,22 +4,27 @@ The vault skills: everything that builds, checks or compiles an **ideaVerse**, p
 installer that puts one in a repo.
 
 The folder is a chiron-side filing convention only. Skills install **flat** — a skill filed at
-`skills/knowledge/wiki-sync/` lands in a consumer repo as `.claude/skills/wiki-sync/`, because
-that is where Claude Code discovers skills. The category never reaches the target.
+`skills/knowledge/ideaverse-wiki-sync/` lands in a consumer repo as
+`.claude/skills/ideaverse-wiki-sync/`, because that is where Claude Code discovers skills. The
+category never reaches the target. The `ideaverse-` prefix is part of each skill's name: a repo
+has skills of its own, and an unprefixed `note-review` or `wiki-sync` reads as if it belongs to
+the project rather than to the vault.
 
 | Skill | Answers | Owns |
 |---|---|---|
 | `bootstrap-ideaverse` | Put a complete ideaVerse in this repo, or bring an existing one up to the current framework | `tools/chiron-install.py` |
-| `vault-health` | Is the vault well-formed? Broken links, orphans, duplicate basenames, frontmatter gaps | `vault-lint.py` |
-| `contradiction-check` | Where does the vault disagree with itself, or with the code? | `contradiction-check.py` |
-| `note-review` | Is *this one note* good — frontmatter, links, structure, sources? | `note-review.py` |
-| `research-capture` | Does this new note pass, and where in the taxonomy does it belong? | `research-capture.py` |
-| `domain-modeling` | What *is* this thing, what should it be called, and what decision did we make? | — |
-| `wiki-sync` | Is the compiled wiki stale, and how does it get reconciled? | `wiki-sync.py` |
+| `ideaverse-vault-health` | Is the vault well-formed? Broken links, orphans, duplicate basenames, frontmatter gaps | `vault-lint.py` |
+| `ideaverse-contradiction-check` | Where does the vault disagree with itself, or with the code? | `contradiction-check.py` |
+| `ideaverse-coverage-gap` | What does the vault not document at all — code, or its own cadence? | `coverage-gap.py` |
+| `ideaverse-note-review` | Is *this one note* good — frontmatter, links, structure, sources? | `note-review.py` |
+| `ideaverse-research-capture` | Does this new note pass, and where in the taxonomy does it belong? | `research-capture.py` |
+| `ideaverse-modeling` | What *is* this thing, what should it be called, and what decision did we make? | — |
+| `ideaverse-wiki-sync` | Is the compiled wiki stale, and how does it get reconciled? | `wiki-sync.py` |
 
-`research-capture` is mechanical (does it pass? where does it go?); `domain-modeling` is
-conceptual (what is this, and what do we call it?). A new concept usually wants
-`domain-modeling` first, then `research-capture` to place the result.
+`ideaverse-research-capture` is mechanical (does it pass? where does it go?);
+`ideaverse-modeling` is conceptual (what is this, and what do we call it?). A new concept
+usually wants `ideaverse-modeling` first, then `ideaverse-research-capture` to place the
+result.
 
 ## Two things that are not like the others
 
@@ -30,14 +35,14 @@ per-repo copy is exactly how the previous version of it drifted from the payload
 It is also the only skill here published as a plugin; see
 [`.claude-plugin/marketplace.json`](../../.claude-plugin/marketplace.json).
 
-**The other six are payload, and payload is managed.** They ship with no project tokens, so
+**The other seven are payload, and payload is managed.** They ship with no project tokens, so
 the installer's three-way diff upgrades them in place for as long as nobody edits them. Edit
 one in a consumer repo and it becomes a permanent CONFLICT: the installer will report it on
 every run and never overwrite it. Project-specific behaviour belongs in
-`aiOS/aios.config.json`, and project-specific scripts in `aiOS/scripts/local/`, which the
-installer never manages.
+`aiOS/aios.config.json`, and project-specific scripts in `aiOS/tools/ideaVerse/local/`, which
+the installer never manages.
 
-That is also why these six are deliberately *not* in the plugin marketplace. A global plugin
+That is also why these seven are deliberately *not* in the plugin marketplace. A global plugin
 copy would sit alongside the managed per-repo copy under a different namespace, and the one
 you invoked would be a coin toss.
 

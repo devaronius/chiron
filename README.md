@@ -33,7 +33,7 @@ claude plugin install chiron@chiron
 
 Plugin skills are **namespaced by plugin name**, which is why they read
 `/chiron:bootstrap-ideaverse` rather than `/bootstrap-ideaverse`. The vault skills
-(`wiki-sync`, `domain-modeling`, `research-capture`, …) are deliberately *not* in a plugin:
+(`ideaverse-wiki-sync`, `ideaverse-modeling`, `ideaverse-research-capture`, …) are deliberately *not* in a plugin:
 the installer writes them into each repo as managed files so they upgrade in place under the
 three-way diff below, and a global plugin copy would shadow that with a second, unmanaged one.
 
@@ -86,12 +86,13 @@ so you keep asking for outcomes rather than naming tools.
 
 | Ask for | Skill |
 |---|---|
-| "is the vault healthy?" | `vault-health` |
-| "capture this as a note" | `research-capture` |
-| "what do we actually mean by *shipment*?" | `domain-modeling` |
-| "is this note any good?" | `note-review` |
-| "does the vault contradict the code?" | `contradiction-check` |
-| "the wiki is stale" | `wiki-sync` |
+| "is the vault healthy?" | `ideaverse-vault-health` |
+| "what isn't documented at all?" | `ideaverse-coverage-gap` |
+| "capture this as a note" | `ideaverse-research-capture` |
+| "what do we actually mean by *shipment*?" | `ideaverse-modeling` |
+| "is this note any good?" | `ideaverse-note-review` |
+| "does the vault contradict the code?" | `ideaverse-contradiction-check` |
+| "the wiki is stale" | `ideaverse-wiki-sync` |
 | "grill me on this plan" | `grilling` |
 | "grill me, and write down what we settle" | `grill-with-docs` — type it, see below |
 
@@ -112,21 +113,28 @@ python3 ~/.chiron/tools/chiron-install.py --target . --apply --project-name "Acm
 
 ```
 <repo>/
+├── aiOS/                        # the operating layer — repo root, beside the vault
+│   ├── aios.config.json         # ← all project-specific behaviour lives here
+│   ├── maps/                    # vault-map (taxonomy) · skill-map (intent → skill)
+│   ├── runbooks/                # vendor-neutral agent runbooks (librarian, day note, …)
+│   ├── schedules/               # scheduled routines, one per file
+│   ├── templates/
+│   └── tools/                   # ideaVerse/ · wiki/ — ideaVerse/local/ is yours, unmanaged
 ├── docs/                        # or the repo root, your choice
 │   ├── <briefing>.md            # who this project is, how an agent should work here
 │   ├── CLAUDE.md
-│   ├── aiOS/
-│   │   ├── aios.config.json     # ← all project-specific behaviour lives here
-│   │   ├── agents/librarian.md  # vendor-neutral vault-maintenance runbook
-│   │   ├── maps/                # vault-map (taxonomy) · skill-map (intent → skill)
-│   │   ├── scripts/             # the analysis tools; scripts/local/ is yours, unmanaged
-│   │   ├── schedules/           # scheduled routines, one per file
-│   │   └── templates/
 │   ├── ideaVerse/               # ACE: atlas/ · calendar/ · efforts/ · +/
 │   └── wiki/                    # compiled, queryable summary of ideaVerse — generated
 ├── .claude/skills/              # the framework meta-skills
+├── .claude/hooks/               # the SessionStart open-items digest (you wire it up)
 └── .claude/agents/librarian.md  # thin harness adapter over the runbook
 ```
+
+**Why `aiOS/` is not in the vault.** It operates on the repo, not only on the notes:
+`coverage-gap.py` reads the package tree, the schedules drive git, and the runbooks are read
+by agents that never open a note. Keeping it at the root also means one fixed point — every
+script derives both the repo root and the vault from its own location, and the vault's
+directory is a config key rather than a guess.
 
 **ACE** — Atlas is the mind's landscape (concepts, APIs, documents, personas), Calendar its
 rhythm (days, meetings, sprints, releases), Efforts its output (projects, works). The `wiki/`
@@ -139,10 +147,12 @@ is a compiled layer: short, single-purpose, source-traceable notes with a
 |---|---|
 | `vault-lint.py` | Is the vault well-formed? Broken links, orphans, duplicate basenames, frontmatter |
 | `contradiction-check.py` | Where does the vault disagree with itself or the code? |
+| `coverage-gap.py` | What does the vault not document at all — packages, API classes, missing day notes? |
 | `note-review.py` | Is *this one note* good? |
-| `wiki-sync.py` | Is the compiled wiki stale? |
+| `wiki-sync.py` | Is the compiled wiki stale? (lives in `tools/wiki/`) |
 | `research-capture.py` | Does this new note pass, and where does it belong? |
-| `open-items.py` | Regenerates the open-items ledger from the notes that own each item |
+| `open-items.py` | Regenerates the ledger, and prints one lane (`--lane`) for a human or a hook |
+| `verify-claims.py` | Re-measures what a note claims, and fails when a number has moved |
 | `vault-report.py` | Rolls the above into one report for the librarian's sweep |
 
 Each has a matching skill in `.claude/skills/`, so an agent routes to it by intent.
@@ -167,10 +177,10 @@ and safe to overwrite; one matching none is yours and is never touched.
 
 Two file classes, distinguished by which directory they ship from:
 
-- **`aiOS/`, `skills/`** — *managed*. No project tokens, so they upgrade automatically for as
-  long as you don't edit them. Skills ship filed by category
-  ([`skills/knowledge/wiki-sync`](skills/knowledge/README.md)) and install flat, as
-  `.claude/skills/wiki-sync`.
+- **`aiOS/`, `skills/`, `hooks/`** — *managed*. No project tokens, so they upgrade
+  automatically for as long as you don't edit them. Skills ship filed by category
+  ([`skills/knowledge/ideaverse-wiki-sync`](skills/knowledge/README.md)) and install flat, as
+  `.claude/skills/ideaverse-wiki-sync`.
 - **`seeds/`** — *seeded*. Rendered once from your project's facts, then yours forever. When
   upstream moves, you get a diff and a merge, never an overwrite. The maps live here, which
   is why your own routing rules survive every upgrade.
@@ -178,7 +188,7 @@ Two file classes, distinguished by which directory they ship from:
 **Configure behaviour; edit prose freely.** Everything project-specific about *how chiron
 runs* — the briefing note's name, the wiki skill's name, capture vocabulary, repo-root mode —
 is in `aiOS/aios.config.json`. Editing a **script** instead forks it permanently from upstream
-bug fixes, so project-specific scripts belong in `aiOS/scripts/local/`, which the installer
+bug fixes, so project-specific scripts belong in `aiOS/tools/ideaVerse/local/`, which the installer
 never manages.
 
 Editing a framework **prose** file — an agent runbook, a template, a map — is a different
@@ -192,14 +202,14 @@ that would otherwise be stranded somewhere less findable. That trade is usually 
 chiron/
 ├── VERSION  CHANGELOG.md  migrations.json  .chiron-hashes.json
 ├── .claude-plugin/marketplace.json # both plugins, defined entirely here
-├── aiOS/    seeds/                 # payload — installed into consumer repos
+├── aiOS/    seeds/    hooks/      # payload — installed into consumer repos
 ├── skills/                         # payload too, filed by category, installed flat
 │   ├── knowledge/                  # the vault skills, and the installer — has a README
 │   └── productivity/               # grilling; no vault required
 └── tools/                          # chiron's own machinery — never installed
     ├── chiron-install.py           # install · adopt · upgrade · verify
     ├── chiron-release.py           # version bump + shipped-hash history
-    └── selftest.sh                 # 48 assertions across 6 scenarios
+    └── selftest.sh                 # 66 assertions across 7 scenarios
 ```
 
 Both plugin entries use `"source": "./"` with `"strict": false`, so each names the skill
@@ -211,7 +221,8 @@ A category documents itself: [`skills/knowledge/README.md`](skills/knowledge/REA
 the seven vault skills, which script each owns, why `bootstrap-ideaverse` is the only one not
 installed into a repo, and the checklist for adding another.
 
-The framework is versioned as **one unit**: `VERSION` covers all three payload directories.
+The framework is versioned as **one unit**: `VERSION` covers every payload directory —
+`aiOS/`, `seeds/`, `skills/` and `hooks/`.
 
 ### Contributing / releasing
 
@@ -235,15 +246,16 @@ fails if one has drifted. That entry's `version` is what decides whether an inst
 ever sees an update, so a stale one silently strands users on whatever they first installed.
 
 `selftest.sh` builds throwaway repos and asserts on real applied trees — including that a
-locally edited file is byte-identical after an upgrade, and that applying twice writes
-nothing. Those two are non-negotiable: everything else being wrong wastes time, while those
-being wrong destroys someone's notes silently.
+locally edited file is byte-identical after an upgrade, that applying twice writes nothing,
+and that a file edited before a *rename* survives being moved. Those three are
+non-negotiable: everything else being wrong wastes time, while those being wrong destroys
+someone's notes silently.
 
 Renames and retirements go in `migrations.json`, applied in version order before the diff:
 
 ```json
 [{"version": "1.1.0",
-  "renames": [["{vault}/aiOS/scripts/old.py", "{vault}/aiOS/scripts/new.py"]],
+  "renames": [["{vault}/aiOS/old.py", "aiOS/new.py"]],
   "retires": ["{vault}/aiOS/templates/gone.md"],
   "note": "surfaced to the agent for follow-up a file copy can't express"}]
 ```

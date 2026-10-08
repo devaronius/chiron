@@ -7,7 +7,7 @@ Not payload. Lives in `tools/`, never copied into a consumer vault.
 
 `.chiron-hashes.json` maps each payload path to every hash chiron has ever shipped for it:
 
-    { "aiOS/scripts/wiki-sync.py": { "0.9.0": "abc…", "1.0.0": "f01…" } }
+    { "aiOS/tools/wiki/wiki-sync.py": { "0.9.0": "abc…", "1.0.0": "f01…" } }
 
 It accumulates — each release adds one entry per payload file and never drops an old one.
 That history is what lets `chiron-install.py` adopt a vault with no manifest: a file whose
@@ -65,7 +65,7 @@ def payload_paths() -> list[str]:
     Reuses the installer's own walk so the two can never disagree about what ships.
     """
     out = []
-    for name in ("aiOS", "seeds"):
+    for name in ("aiOS", "seeds", "hooks"):
         d = CHIRON_ROOT / name
         if d.is_dir():
             out += [p.relative_to(CHIRON_ROOT).as_posix() for p in _installer.walk(d)]
