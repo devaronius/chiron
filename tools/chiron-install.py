@@ -211,6 +211,8 @@ def seed_destinations(vault_prefix: str, briefing: str) -> dict:
         "vault-root.CLAUDE.md": f"{vault_prefix}CLAUDE.md",
         "aios.config.json": "aiOS/aios.config.json",
         "claude-agent-librarian.md": f"{AGENTS_DEST}/librarian.md",
+        "claude-agent-researcher.md": f"{AGENTS_DEST}/researcher.md",
+        "claude-agent-inspector.md": f"{AGENTS_DEST}/inspector.md",
         # The maps land in aiOS/ but are seeded, not managed: they carry the project's name
         # and, once installed, the consumer's own routing rules and precedence notes. An
         # upgrade reports that upstream moved and leaves the merge to a human or an agent.

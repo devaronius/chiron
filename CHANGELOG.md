@@ -83,6 +83,37 @@ the three-way diff.
   and the harness-capability vocabulary (`browser-control`, `mcp:<server>`), because a
   schedule is the one file in the vendor-neutral ring allowed to name a harness.
 
+### Added — the agents, and tests that travel with the tooling
+
+- **`researcher` and `inspector` join `librarian`.** Each is a vendor-neutral runbook under
+  `aiOS/runbooks/` plus a thin `.claude/agents/` adapter, and the last two are bounded by
+  `PreToolUse` scope hooks rather than by their own good intentions: an allowlist of command
+  heads, writes confined to one note or a scratchpad, and no raw `git` to the remote.
+
+  **Their tracker coupling is a declared seam, not a hardcoded client.** chiron ships no
+  pull-request client — a PR lives on a tracker the framework knows nothing about — so a
+  project names one in `agents.<agent>.scripts` and the hooks compile their matchers from
+  that. With none configured the researcher still researches and writes its note, and the
+  inspector still reviews session code; only *pull-request* mode is unavailable, and it says
+  so rather than improvising a route. Same for `agents.inspector.buildCommands` (the
+  project's toolchain), `agents.researcher.curlHosts` (probe targets — **empty means `curl`
+  is refused outright**, because network reach is granted, never inherited) and
+  `agents.researcher.protectedPaths` (notes another session owns exclusively).
+- **The Python suites ship into the consumer repo**, under `aiOS/tools/ideaVerse/tests/`,
+  `.claude/hooks/tests/` and each skill's own `tests/` — 302 tests. A vault can verify its
+  copy after an upgrade instead of trusting that a change landed cleanly, which is the whole
+  reason an upgrade is allowed to overwrite anything.
+- **`aiOS/tools/run-tests.sh`** discovers every suite under `aiOS/tools/**/tests` and
+  `.claude/**/tests` and runs them. `--coverage` adds line coverage when `coverage.py` is
+  installed, and says plainly that it is not rather than reporting an absent measurement as
+  zero. It sits in the vendor-neutral ring, because a repo with no Claude Code in front of it
+  still has to be able to verify its own tooling.
+- Four tests needed generalising before they could travel, and each was a latent assumption
+  worth naming: the vault's location (now read from `vaultDir`), a hardcoded source count,
+  a fixed `code` key set (a vault with no code configures none), and wiring assertions that
+  read `.claude/settings.json` — which chiron never writes, so they now **skip** on an
+  unwired repo instead of failing it.
+
 ### Added — vault rules the scripts now enforce
 
 - **Kinded folders.** `atlas/documents/` notes must declare `kind: external | process |

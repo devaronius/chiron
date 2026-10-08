@@ -135,9 +135,8 @@ def check_inbox_links(notes: list[dict]) -> list[str]:
 
     The inbox holds unfiled capture that moves out when processed, so a filed note
     depending on one depends on something about to move. Grouped by target like
-    [BROKEN]: filing one inbox note fixes every link to it. Found 2026-09-29, when 13
-    notes imported from MobileApp's atlas/documents/ had landed in `+/` and six were
-    still linked from filed notes.
+    [BROKEN]: filing one inbox note fixes every link to it. Found when a bulk import
+    left thirteen notes in `+/` and six of them were already linked from filed notes.
     """
     inbox = {n["basename"]: n["path"] for n in notes if n["path"].startswith(INBOX_PREFIX)}
     by_target: dict[str, list[str]] = {}

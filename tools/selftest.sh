@@ -90,11 +90,22 @@ out=$( cd "$T" && python3 .claude/hooks/open-items-lane.py 2>&1 ); rc=$?
 check "session hook exits 0 with nothing ripe" "$rc" "0"
 [ -f "$T/.claude/skills/pdf-builder/md2pdf.py" ] && ok "pdf-builder installed with its script" \
                                                  || bad "pdf-builder installed with its script"
-# A payload script ships with its own suite so a consumer can verify their copy after an
-# upgrade. Run it in the INSTALLED tree, not chiron's — that is the copy that has to work.
-out=$( cd "$T/.claude/skills/pdf-builder" && python3 -m unittest discover -s tests -q 2>&1 )
-grep -qE '^OK' <<<"$out" && ok "pdf-builder's shipped suite passes where installed" \
-                         || bad "pdf-builder's shipped suite passes where installed"
+for agent in librarian researcher inspector; do
+  [ -f "$T/.claude/agents/$agent.md" ] && ok "$agent adapter installed" \
+                                       || bad "$agent adapter installed"
+  [ -f "$T/aiOS/runbooks/$agent.runbook.md" ] && ok "$agent runbook installed" \
+                                              || bad "$agent runbook installed"
+done
+[ -f "$T/.claude/hooks/researcher-scope.py" ] && ok "researcher scope hook installed" \
+                                              || bad "researcher scope hook installed"
+[ -f "$T/.claude/hooks/inspector-scope.py" ]  && ok "inspector scope hook installed" \
+                                              || bad "inspector scope hook installed"
+# The payload ships its own suites so a consumer can verify their copy after an upgrade.
+# Run them in the INSTALLED tree, not chiron's — that is the copy that has to work, and a
+# suite that only passes upstream is the failure this assertion exists to catch.
+out=$( cd "$T" && bash aiOS/tools/run-tests.sh 2>&1 )
+grep -q "all 3 suites pass" <<<"$out" && ok "every shipped suite passes where installed" \
+                                      || { bad "every shipped suite passes where installed"; printf '%s\n' "$out" | tail -12; }
 
 # ── 2. idempotence ────────────────────────────────────────────
 head1 "2. idempotence — apply twice writes nothing"

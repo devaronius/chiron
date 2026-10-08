@@ -15,5 +15,16 @@
   "efforts": {
     "stubAfterWorkdays": 14
   },
+  "agents": {
+    "inspector": {
+      "scripts": [],
+      "buildCommands": []
+    },
+    "researcher": {
+      "scripts": [],
+      "curlHosts": [],
+      "protectedPaths": []
+    }
+  },
   "code": {}
 }
