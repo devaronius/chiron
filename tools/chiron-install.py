@@ -23,12 +23,18 @@ shipped for a path.
 
 Two file classes, distinguished structurally by which payload directory they come from:
 
-  managed   aiOS/** and skills/**  — no install tokens, hashes compare directly upstream
-                                     (`skills/<category>/<skill>/` installs flat, as
-                                     `.claude/skills/<skill>/`)
-                                     to disk, upgraded automatically while untouched
+  managed   aiOS/**, skills/**,    — no install tokens, so hashes compare directly upstream
+            hooks/**                 to disk and the file upgrades automatically while
+                                     untouched. `skills/<category>/<skill>/` installs flat as
+                                     `.claude/skills/<skill>/`; `hooks/<file>` as
+                                     `.claude/hooks/<file>`.
   seeded    seeds/**               — rendered once from project facts, then yours; never
                                      overwritten again, only reported when upstream moves
+
+Two roots, not one. `aiOS/` installs at the **repo root** — it is the operating layer, and it
+runs over the repo as much as over the notes. The vault (`ideaVerse/`, `wiki/`, the briefing,
+the ledgers) installs under the vault prefix, which is the repo root itself or a subdirectory
+such as `docs/`. The manifest lives with `aiOS/`, because that is the part that never moves.
 
 Usage:
   chiron-install.py --target DIR --plan
@@ -61,9 +67,11 @@ HASHES_PATH = CHIRON_ROOT / ".chiron-hashes.json"
 MIGRATIONS_PATH = CHIRON_ROOT / "migrations.json"
 VERSION_PATH = CHIRON_ROOT / "VERSION"
 
-MANIFEST_REL = "aiOS/.chiron-install.json"      # relative to the vault
+MANIFEST_REL = "aiOS/.chiron-install.json"      # relative to the repo root
+LEGACY_MANIFEST_DIRS = ("docs/",)               # where <2.0.0 kept it, under the vault
 SKILLS_DEST = ".claude/skills"
 AGENTS_DEST = ".claude/agents"
+HOOKS_DEST = ".claude/hooks"
 
 # The installer itself is user-level (`~/.claude/skills/`), one copy for every repo — a
 # per-repo copy is what let the old skill drift from its own payload. Matched on the skill's
@@ -77,13 +85,14 @@ PAYLOAD_EXCLUDE_DIRS = {"__pycache__", "local"}
 # The ACE skeleton. Created empty so a new note has an obvious home rather than requiring
 # the author to guess and invent a folder. Git will not track an empty directory, which is
 # fine — the first note in one recreates it.
+AIOS_SCAFFOLD_DIRS = ["aiOS/schedules", "aiOS/tools/ideaVerse/local"]
+
 SCAFFOLD_DIRS = [
-    "aiOS/schedules", "aiOS/scripts/local",
     "ideaVerse/atlas/apis", "ideaVerse/atlas/concepts", "ideaVerse/atlas/documents",
     "ideaVerse/atlas/personas",
     "ideaVerse/calendar/days", "ideaVerse/calendar/briefings", "ideaVerse/calendar/meetings",
     "ideaVerse/calendar/research", "ideaVerse/calendar/releases", "ideaVerse/calendar/sprints",
-    "ideaVerse/efforts/projects", "ideaVerse/efforts/works",
+    "ideaVerse/efforts/projects", "ideaVerse/efforts/works", "ideaVerse/efforts/referrals",
     "ideaVerse/+",
     "wiki/topics", "wiki/concepts", "wiki/entities", "wiki/projects",
 ]
@@ -165,9 +174,11 @@ class Item:
 def payload(vault_prefix: str, seed_dests: dict) -> list[Item]:
     items: list[Item] = []
 
+    # aiOS/ is repo-root, not vault-relative: it operates on the repo as a whole, and the
+    # scripts derive both roots from their own location on that assumption.
     for p in walk(CHIRON_ROOT / "aiOS"):
         rel = p.relative_to(CHIRON_ROOT).as_posix()
-        items.append(Item(rel, f"{vault_prefix}{rel}", "managed"))
+        items.append(Item(rel, rel, "managed"))
 
     for d in skill_dirs():
         if d.name in SKILLS_NOT_INSTALLED:
@@ -176,6 +187,11 @@ def payload(vault_prefix: str, seed_dests: dict) -> list[Item]:
             rel = p.relative_to(CHIRON_ROOT).as_posix()
             inner = p.relative_to(d).as_posix()
             items.append(Item(rel, f"{SKILLS_DEST}/{d.name}/{inner}", "managed"))
+
+    for p in walk(CHIRON_ROOT / "hooks"):
+        rel = p.relative_to(CHIRON_ROOT).as_posix()
+        inner = p.relative_to(CHIRON_ROOT / "hooks").as_posix()
+        items.append(Item(rel, f"{HOOKS_DEST}/{inner}", "managed"))
 
     for p in walk(CHIRON_ROOT / "seeds"):
         rel = p.relative_to(CHIRON_ROOT).as_posix()
@@ -193,13 +209,13 @@ def seed_destinations(vault_prefix: str, briefing: str) -> dict:
     return {
         "project-brief.md": f"{vault_prefix}{briefing}.md",
         "vault-root.CLAUDE.md": f"{vault_prefix}CLAUDE.md",
-        "aios.config.json": f"{vault_prefix}aiOS/aios.config.json",
+        "aios.config.json": "aiOS/aios.config.json",
         "claude-agent-librarian.md": f"{AGENTS_DEST}/librarian.md",
         # The maps land in aiOS/ but are seeded, not managed: they carry the project's name
         # and, once installed, the consumer's own routing rules and precedence notes. An
         # upgrade reports that upstream moved and leaves the merge to a human or an agent.
-        "maps/vault-map.md": f"{vault_prefix}aiOS/maps/vault-map.md",
-        "maps/skill-map.md": f"{vault_prefix}aiOS/maps/skill-map.md",
+        "maps/vault-map.md": "aiOS/maps/vault-map.md",
+        "maps/skill-map.md": "aiOS/maps/skill-map.md",
     }
 
 
@@ -242,6 +258,12 @@ def build_plan(target: Path, vault_prefix: str, tokens: dict, briefing: str,
         migrations.sort(key=lambda m: semver(m["version"]))
 
     actions: list[dict] = []
+    # A migration rename moves a file that is still at its old path while this plan is being
+    # built — apply_plan does the moving afterwards. Judging the new path alone would report
+    # every renamed file as missing, and the ADD that follows overwrites the file the rename
+    # just carried over, local edits and all. So the plan reads the old path's content and
+    # decides there; the physical move still happens first at apply time.
+    moving = {new: old for old, new in plan_renames(vault_prefix, migrations)}
     seed_dests = seed_destinations(vault_prefix, briefing)
     for item in payload(vault_prefix, seed_dests):
         dest_rel = remap(item, mapping)
@@ -251,6 +273,10 @@ def build_plan(target: Path, vault_prefix: str, tokens: dict, briefing: str,
             dest_rel = recorded["installedAs"]
 
         dest = target / dest_rel
+        if not dest.exists() and dest_rel in moving:
+            incoming = target / moving[dest_rel]
+            if incoming.is_file():
+                dest = incoming
         want = content_for(item, tokens)
         want_sha = sha(want)
         upstream_sha = sha(item.abs_src.read_bytes())
@@ -335,7 +361,18 @@ def apply_plan(target: Path, vault_prefix: str, tokens: dict, briefing: str,
         if src.exists() and not dst.exists():
             dst.parent.mkdir(parents=True, exist_ok=True)
             shutil.move(str(src), str(dst))
+        # A directory the rename emptied is not the consumer's; leaving `aiOS/scripts/`
+        # standing with nothing in it reads as "some of the move failed".
+        for d in (src.parent, *src.parents):
+            if d == target or target not in d.parents:
+                break
+            try:
+                d.rmdir()
+            except OSError:
+                break
 
+    for d in AIOS_SCAFFOLD_DIRS:
+        (target / d).mkdir(parents=True, exist_ok=True)
     for d in SCAFFOLD_DIRS:
         (target / vault_prefix / d).mkdir(parents=True, exist_ok=True)
 
@@ -401,7 +438,10 @@ def apply_plan(target: Path, vault_prefix: str, tokens: dict, briefing: str,
 def detect_mode(target: Path, vault_prefix: str, manifest: dict) -> str:
     vault = target / vault_prefix if vault_prefix else target
     if not manifest:
-        has_vault = (vault / "aiOS").is_dir() or (vault / "ideaVerse").is_dir()
+        # `aiOS/` may still sit inside the vault here: a pre-2.0.0 install has no manifest
+        # once it is adopted, and adopting it is exactly what must happen next.
+        has_vault = ((target / "aiOS").is_dir() or (vault / "aiOS").is_dir()
+                     or (vault / "ideaVerse").is_dir())
         return "adopt" if has_vault else "install"
     if semver(manifest.get("chironVersion", "0")) < semver(version()):
         return "upgrade"
@@ -464,7 +504,7 @@ def main() -> int:
     ap.add_argument("--project-domain", default="")
     ap.add_argument("--roles", default="", help="comma-separated; empty means solo")
     ap.add_argument("--briefing-note", default=None, help="basename of the briefing note")
-    ap.add_argument("--wiki-skill", default="wiki-sync")
+    ap.add_argument("--wiki-skill", default="ideaverse-wiki-sync")
     ap.add_argument("--map", action="append", default=[], metavar="SRC=DEST",
                     help="install a payload path to a non-default destination")
     g = ap.add_mutually_exclusive_group(required=True)
@@ -482,17 +522,19 @@ def main() -> int:
         return 2
 
     # An existing install decides its own layout; only a fresh one takes it from flags.
-    vault_prefix = None
-    for cand in ("", "docs/"):
-        m = read_json(target / cand / MANIFEST_REL, None)
-        if m:
-            vault_prefix, manifest = cand, m
+    # The manifest lives beside `aiOS/` at the repo root. Before 2.0.0 it lived under the
+    # vault, so a vault that has not been migrated yet is still found and still upgrades.
+    manifest = read_json(target / MANIFEST_REL, None) or {}
+    for cand in LEGACY_MANIFEST_DIRS:
+        if manifest:
             break
-    else:
-        manifest = {}
+        manifest = read_json(target / cand / MANIFEST_REL, None) or {}
+
+    vault_prefix = None
+    if not manifest:
         for cand in ("docs/", ""):
             probe = target / cand
-            if (probe / "aiOS").is_dir() or (probe / "ideaVerse").is_dir():
+            if (probe / "ideaVerse").is_dir() or (probe / "aiOS").is_dir():
                 vault_prefix = cand
                 break
     if vault_prefix is None:
@@ -514,8 +556,12 @@ def main() -> int:
         "ROLES_SECTION": roles_section or stored.get("ROLES_SECTION", ""),
         "VAULT_ROOT": vault_prefix.rstrip("/") or ".",
         "VAULT_PREFIX": vault_prefix,
+        # The directory the scripts look in for the notes. Only consulted when the vault is
+        # not the repo root, so a root-mode install still records a usable default rather
+        # than `.`, which reads as "no vault directory" the moment the mode is switched.
+        "VAULT_DIR_NAME": vault_prefix.rstrip("/") or "docs",
         "BRIEFING_NOTE": briefing,
-        "WIKI_SKILL": args.wiki_skill or stored.get("WIKI_SKILL", "wiki-sync"),
+        "WIKI_SKILL": args.wiki_skill or stored.get("WIKI_SKILL", "ideaverse-wiki-sync"),
         "VAULT_AT_REPO_ROOT": "true" if vault_prefix == "" else "false",
         "date": str(date.today()),
     }
@@ -551,9 +597,13 @@ def main() -> int:
     if args.apply:
         new_manifest = apply_plan(target, vault_prefix, tokens, briefing,
                                   actions, migrations, manifest)
-        mpath = target / vault_prefix / MANIFEST_REL
+        mpath = target / MANIFEST_REL
         mpath.parent.mkdir(parents=True, exist_ok=True)
         mpath.write_text(json.dumps(new_manifest, indent=2) + "\n", encoding="utf-8")
+        for cand in LEGACY_MANIFEST_DIRS:                   # one manifest, or the next run
+            legacy = target / cand / MANIFEST_REL           # reads a stale layout as current
+            if legacy != mpath:
+                legacy.unlink(missing_ok=True)
         rc = report(mode, actions, migrations, applied=True)
         print(f"✓ manifest written: {mpath.relative_to(target)}")
         return rc

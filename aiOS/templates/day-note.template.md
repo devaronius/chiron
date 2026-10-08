@@ -61,4 +61,4 @@ _Anything that should outlive the day: new conventions, note updates, wiki compi
 
 ---
 
-> **Building this note:** see [[day-note.runbook]] for the full how-to. In short: fill the at-a-glance callout, lift every task/deadline into its own section with glyph + [[open_item]] schema, summarise discussions (gist + decision + who), keep it source-traceable. After writing, re-run `python3 ideaVerse/aiOS/scripts/open-items.py --today {{date}}` to refresh the [open-items ledger](../../open-items.md).
+> **Building this note:** see [[day-note.runbook]] for the full how-to. In short: fill the at-a-glance callout, lift every task/deadline into its own section with glyph + [[open_item]] schema, summarise discussions (gist + decision + who), keep it source-traceable. After writing, re-run `python3 aiOS/tools/ideaVerse/open-items.py --today {{date}}` to refresh the [open-items ledger](../../open-items.md).

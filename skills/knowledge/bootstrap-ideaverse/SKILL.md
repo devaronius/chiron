@@ -1,6 +1,6 @@
 ---
 name: bootstrap-ideaverse
-description: Install, adopt, upgrade or verify a chiron ideaVerse in a repo — the aiOS (ACE vault + maps + scripts + templates + librarian runbook), a wired concept wiki, and the framework meta-skills. Use when asked to "set up an ideaVerse / aiOS / knowledge vault here", to scaffold the docs vault + wiki, to bring an existing vault up to the current framework version, or to check whether one has drifted.
+description: Install, adopt, upgrade or verify a chiron ideaVerse in a repo — the aiOS (ACE vault + maps + tools + runbooks + schedules + templates), a wired concept wiki, and the framework meta-skills. Use when asked to "set up an ideaVerse / aiOS / knowledge vault here", to scaffold the docs vault + wiki, to bring an existing vault up to the current framework version, or to check whether one has drifted.
 ---
 
 # Bootstrap IdeaVerse
@@ -9,6 +9,11 @@ Put a **complete, working ideaVerse** into a repo — the ACE vault (Atlas / Cal
 Efforts), the `aiOS/` operating layer, a compiled `wiki/` that is *in sync* on the first
 run, the framework meta-skills, and the orientation wiring so any agent landing in the repo
 finds it. And keep it current afterwards.
+
+**Two roots.** `aiOS/` installs at the **repo root** — it is the operating layer and it runs
+over the repo, not only over the notes. The vault (`ideaVerse/`, `wiki/`, the briefing, the
+ledgers) installs under `docs/` or at the repo root, as the interview decides. The manifest
+sits with `aiOS/`, because that is the part that never moves.
 
 The payload is **not** bundled here. It lives in
 [chiron](https://github.com/devaronius/chiron) and this skill fetches it, so there is
@@ -76,7 +81,7 @@ Before applying anything to an existing vault, take a baseline so you can prove 
 harm:
 
 ```bash
-python3 "$VAULT/aiOS/scripts/vault-lint.py" --quiet    # keep this output
+python3 "$REPO/aiOS/tools/ideaVerse/vault-lint.py" --quiet    # keep this output
 ```
 
 Then apply, passing the interview answers on install:
@@ -87,7 +92,7 @@ python3 ~/.chiron/tools/chiron-install.py --target "$REPO" --apply \
 ```
 
 Use `--map SRC=DEST` when a consumer has renamed something chiron ships — e.g.
-`--map skills/knowledge/wiki-sync=.claude/skills/cca-wiki-sync`. SRC is the payload path in
+`--map skills/knowledge/ideaverse-wiki-sync=.claude/skills/cca-wiki-sync`. SRC is the payload path in
 the chiron checkout, category folder included. The rename is recorded in the
 manifest so every later upgrade follows it instead of re-adding the original name.
 
@@ -96,15 +101,15 @@ manifest so every later upgrade follows it instead of re-adding the original nam
 After applying:
 
 ```bash
-python3 "$VAULT/aiOS/scripts/vault-lint.py"     # compare against the Step 4 baseline
-python3 "$VAULT/aiOS/scripts/wiki-sync.py"      # report drift — see the warning below
-python3 "$VAULT/aiOS/scripts/open-items.py"     # safe: a pure function of the notes
+python3 "$REPO/aiOS/tools/ideaVerse/vault-lint.py"   # compare against the Step 4 baseline
+python3 "$REPO/aiOS/tools/wiki/wiki-sync.py"         # report drift — see the warning below
+python3 "$REPO/aiOS/tools/ideaVerse/open-items.py"   # safe: a pure function of the notes
 ```
 
 - If the linter is dirty **and was clean before**, that is the upgrade's fault. Say so
   plainly and fix it rather than reporting success.
 - **On a fresh install only**, snapshot the wiki baseline once:
-  `python3 "$VAULT/aiOS/scripts/wiki-sync.py" --update`, then confirm it reports
+  `python3 "$REPO/aiOS/tools/wiki/wiki-sync.py" --update`, then confirm it reports
   *"Wiki is in sync"*.
 - **On upgrade or adopt, never run `--update`.** It re-snapshots *every* source, so running
   it while unreconciled drift exists silently baselines that drift and hides it forever —
@@ -117,7 +122,7 @@ This is the part only you can do. For each **REVIEW**, diff the installed file a
 upstream one and merge *semantically*:
 
 ```bash
-diff "$VAULT/aiOS/maps/skill-map.md" ~/.chiron/seeds/maps/skill-map.md
+diff "$REPO/aiOS/maps/skill-map.md" ~/.chiron/seeds/maps/skill-map.md
 ```
 
 A consumer's `skill-map.md` grows its own rows and precedence rules; upstream adds framework
@@ -139,14 +144,39 @@ So an agent landing at the repo root finds the vault:
   existing content** — append only.
 - In **root mode** the vault's `CLAUDE.md` *is* the repo's; skip this step.
 
+### The SessionStart hook
+
+`.claude/hooks/open-items-lane.py` ships with the payload but **wires itself nowhere** —
+`.claude/settings.json` is the consumer's file and chiron never writes it. Offer to add the
+entry, and merge rather than replace:
+
+```json
+"SessionStart": [
+  { "hooks": [ { "type": "command",
+                 "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/open-items-lane.py\"",
+                 "timeout": 30 } ] }
+]
+```
+
+It prints the ripe open items at the start of every session and exits 0 whatever happens, so
+a ledger problem can never block a session from starting. Without the wiring the file is
+inert — say so rather than reporting the hook as installed.
+
+### Fill in `aios.config.json`
+
+Two keys decide whether the lane machinery does anything, and both are empty on a fresh
+install: **`assignees.self`** (your handle — with it unset, every item reads as *unrouted*)
+and the **`code`** block (the `coverage-gap.py` checks stay off until the repo's package,
+app and feature directories are named there). Ask for the first; mention the second.
+
 ## Step 8 — Report & hand off
 
 State the mode, the version installed, what changed, and — explicitly — what you left alone
 and why. Then suggest the next step rather than taking it:
 
-> Your ideaVerse is live at `<vault>/` on chiron `<version>`. To start capturing domain
-> terms, decisions and API contracts, use the **`domain-modeling`** skill; to compile them
-> into the wiki, **`wiki-sync`**.
+> Your ideaVerse is live at `<vault>/` on chiron `<version>`, with `aiOS/` at the repo root.
+> To start capturing domain terms, decisions and API contracts, use the
+> **`ideaverse-modeling`** skill; to compile them into the wiki, **`ideaverse-wiki-sync`**.
 
 ## Guardrails
 
@@ -159,9 +189,9 @@ and why. Then suggest the next step rather than taking it:
   and it strands project knowledge in the wrong place.
   - **Prose** — agent runbooks, templates, the maps — is where a project's own knowledge
     legitimately lands. Editing it is expected.
-  - **Behaviour** — anything in `aiOS/scripts/` — should stay byte-identical, because an
+  - **Behaviour** — anything under `aiOS/tools/` — should stay byte-identical, because an
     edited script forks permanently from upstream bug fixes. Put project-specific behaviour
-    in `aiOS/aios.config.json`, and project-specific scripts in `aiOS/scripts/local/`,
+    in `aiOS/aios.config.json`, and project-specific scripts in `aiOS/tools/ideaVerse/local/`,
     which the installer never manages.
 - **This skill is user-level.** It belongs in `~/.claude/skills/`, one copy for every repo.
   Do not commit it into a target repo — a per-repo copy is exactly how the previous version

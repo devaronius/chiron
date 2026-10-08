@@ -22,7 +22,7 @@ _None yet — add topic hubs as the wiki grows._
 
 ## Concepts
 
-- [[open-item]] — the owned-once, viewed-everywhere unit of tracked work.
+- [[open-item]] — the owned-once, viewed-everywhere unit of tracked work, and the lanes its `assignee::` routes it to.
 
 ## Entities
 

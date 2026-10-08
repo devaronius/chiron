@@ -3,7 +3,17 @@
   "rootNotes": [],
   "wikiSkillName": "{{WIKI_SKILL}}",
   "vaultAtRepoRoot": {{VAULT_AT_REPO_ROOT}},
+  "vaultDir": "{{VAULT_DIR_NAME}}",
   "codeVocabulary": [],
   "captureKeywords": {},
+  "assignees": {
+    "self": ""
+  },
+  "calendar": {
+    "absences": []
+  },
+  "efforts": {
+    "stubAfterWorkdays": 14
+  },
   "code": {}
 }
