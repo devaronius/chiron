@@ -94,6 +94,8 @@ so you keep asking for outcomes rather than naming tools.
 | "does the vault contradict the code?" | `ideaverse-contradiction-check` |
 | "the wiki is stale" | `ideaverse-wiki-sync` |
 | "turn this note into a PDF I can send" | `pdf-builder` |
+| "QA this change" / "review PR 812" | the `inspector` agent |
+| "go find this out while I'm away" | the `researcher` agent |
 | "grill me on this plan" | `grilling` |
 | "grill me, and write down what we settle" | `grill-with-docs` — type it, see below |
 
@@ -126,9 +128,9 @@ python3 ~/.chiron/tools/chiron-install.py --target . --apply --project-name "Acm
 │   ├── CLAUDE.md
 │   ├── ideaVerse/               # ACE: atlas/ · calendar/ · efforts/ · +/
 │   └── wiki/                    # compiled, queryable summary of ideaVerse — generated
-├── .claude/skills/              # the framework meta-skills
-├── .claude/hooks/               # the SessionStart open-items digest (you wire it up)
-└── .claude/agents/librarian.md  # thin harness adapter over the runbook
+├── .claude/skills/              # the framework meta-skills, each with its tests
+├── .claude/hooks/               # session digest + the two agent scope hooks (you wire them)
+└── .claude/agents/              # thin harness adapters: librarian · researcher · inspector
 ```
 
 **Why `aiOS/` is not in the vault.** It operates on the repo, not only on the notes:
@@ -157,6 +159,23 @@ is a compiled layer: short, single-purpose, source-traceable notes with a
 | `vault-report.py` | Rolls the above into one report for the librarian's sweep |
 
 Each has a matching skill in `.claude/skills/`, so an agent routes to it by intent.
+
+### Tests ship with the tooling
+
+`aiOS/tools/run-tests.sh` discovers every Python suite under `aiOS/tools/**/tests` and
+`.claude/**/tests` and runs them; `--coverage` adds line coverage when `coverage.py` is
+installed, and says so plainly when it is not. The suites ship **into the consumer repo**
+rather than staying upstream, so a vault can verify its own copy after an upgrade instead of
+trusting that a change landed cleanly. They touch no network and no tracker.
+
+### Three agents
+
+`librarian` (maintain the vault), `researcher` (answer one scoped question unattended) and
+`inspector` (QA a change) each ship as a vendor-neutral runbook in `aiOS/runbooks/` plus a
+thin `.claude/agents/` adapter. The last two are bounded by `PreToolUse` scope hooks rather
+than by their own good intentions: an allowlist of command heads, writes confined to one
+note or a scratchpad, and no route to a tracker except the client the project names in
+`agents.*.scripts`. chiron ships no such client — that part is yours.
 
 ## Upgrading without losing your work
 

@@ -68,13 +68,31 @@ Run these *before* writing notes. They answer different questions and do not ove
 
 **Disambiguation:** handing work to **a person** — a designer, backend, product, legal — is a **referral**: a durable vault note under `ideaVerse/efforts/referrals/`, written for a reader outside the team (see [[vault-map]]). Handing context to **another session** is not one of these; that is ephemeral, lives outside the repo, and is deleted once taken over.
 
-## IdeaVerse — maintain (agent, not a skill)
+## Agents — delegate, don't load
 
-| Intent | Agent | Invoke |
+An agent is a **subagent with its own context**, not a skill you load into yours. Each one's
+behaviour lives in a vendor-neutral runbook under `/aiOS/runbooks/`; the file in
+`.claude/agents/` is a thin adapter carrying the harness wiring and the constraints.
+
+| Intent | Agent | Runbook |
 |---|---|---|
-| Run the whole diagnose→fix loop; reconcile wiki drift; repair links/frontmatter; propose editorial cleanups | **librarian** | model (delegate) |
+| Run the whole diagnose→fix loop; reconcile wiki drift; repair links/frontmatter; propose editorial cleanups | **librarian** | [librarian](/aiOS/runbooks/librarian.runbook.md) |
+| Answer one scoped question unattended and land it as one note, with a published change for a human to merge | **researcher** | [researcher](/aiOS/runbooks/researcher.runbook.md) |
+| QA a change — session code against the ask, or a pull request against its acceptance criteria | **inspector** | [inspector](/aiOS/runbooks/inspector.runbook.md) |
 
-The librarian is a **subagent**, not a skill — delegate to it rather than loading it. Its behaviour spec is the vendor-neutral runbook [`/aiOS/runbooks/librarian.runbook.md`](/aiOS/runbooks/librarian.runbook.md); `.claude/agents/librarian.md` is a thin adapter over the same runbook.
+**The researcher and the inspector need a project seam before they are fully useful.** Both
+reach a tracker only through a client named in `aiOS/aios.config.json` → `agents.*.scripts`,
+and the harness refuses every other route. With none configured, the researcher still
+researches and writes its note (you supply the publish command), and the inspector still
+reviews session code — it is only *pull-request* mode that is unavailable, and it says so
+rather than improvising.
+
+**Disambiguation — researcher vs. a question asked in conversation.** The researcher is for a
+question that is already *scoped*: one answer, sized to one unattended session, one note. An
+open-ended question stays in the main session, because the thing that decides the answer's
+quality is the back-and-forth that reshapes the question — and a dispatched agent cannot be
+reshaped. If the question is big enough to deserve a second pair of eyes, scope it first and
+then dispatch; do not split the difference.
 
 **Boundary:** the librarian **never authors knowledge** — it only reshapes what already exists. A new note is still `ideaverse-research-capture` / `ideaverse-modeling` in the main session. It applies deterministic fixes only; merges, splits, renames, deletions and effort retirements are written as proposals into `vault-report.md` for a human to approve.
 
