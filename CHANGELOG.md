@@ -63,6 +63,17 @@ the three-way diff.
   measurement to call and, for some, a path inside the repo — nothing else. The `tests` and
   `suites` measurements read `code.testCommand` from `aios.config.json` and report
   themselves unavailable when it is unset, rather than guessing a runner.
+- **`pdf-builder`** — a note becomes a PDF someone outside the team can read, with one
+  command: markdown → HTML → headless Chrome, Obsidian never involved. It knows the vault's
+  dialect (frontmatter stripped, `[[wikilinks]]` flattened, callouts boxed, `sources:`
+  rendered as a References appendix, mermaid fences drawn) and it paginates deliberately —
+  no stranded heading, no table split onto a lone row.
+
+  It is the first skill to **ship its own `tests/`**, which install with it: a consumer can
+  verify their copy after an upgrade instead of trusting that a renderer change landed
+  cleanly. The suite touches no network, launches no Chrome and writes no PDF. Its
+  vault-wide citation test reads `vaultDir` from `aios.config.json` rather than assuming
+  `<repo>/docs`, and skips rather than fails on a vault too young to have cited anything.
 - **Runbooks**: `api-note`, `daily-briefing`, `sprint-note` join `librarian` and `day-note`.
 - **Schedules**: `daily-librarian`, `daily-day-note`, `daily-briefing`. Wiki sync is step 3
   of the librarian's evening sweep rather than a routine of its own — as a separate morning

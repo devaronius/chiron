@@ -78,8 +78,8 @@ HOOKS_DEST = ".claude/hooks"
 # own directory name, not its category path.
 SKILLS_NOT_INSTALLED = {"bootstrap-ideaverse"}
 
-# Never treated as payload, even though they sit in aiOS/.
-PAYLOAD_EXCLUDE = {".chiron-install.json", ".DS_Store"}
+# Never treated as payload: generated at runtime beside the file that generates it.
+PAYLOAD_EXCLUDE = {".chiron-install.json", ".DS_Store", ".mermaid.min.js"}
 PAYLOAD_EXCLUDE_DIRS = {"__pycache__", "local"}
 
 # The ACE skeleton. Created empty so a new note has an obvious home rather than requiring
