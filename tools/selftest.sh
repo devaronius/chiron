@@ -88,6 +88,13 @@ out=$( cd "$T" && python3 aiOS/tools/ideaVerse/open-items.py --lane 2>&1 ); rc=$
 check "open-items --lane exits 0 on an empty vault" "$rc" "0"
 out=$( cd "$T" && python3 .claude/hooks/open-items-lane.py 2>&1 ); rc=$?
 check "session hook exits 0 with nothing ripe" "$rc" "0"
+[ -f "$T/.claude/skills/pdf-builder/md2pdf.py" ] && ok "pdf-builder installed with its script" \
+                                                 || bad "pdf-builder installed with its script"
+# A payload script ships with its own suite so a consumer can verify their copy after an
+# upgrade. Run it in the INSTALLED tree, not chiron's — that is the copy that has to work.
+out=$( cd "$T/.claude/skills/pdf-builder" && python3 -m unittest discover -s tests -q 2>&1 )
+grep -qE '^OK' <<<"$out" && ok "pdf-builder's shipped suite passes where installed" \
+                         || bad "pdf-builder's shipped suite passes where installed"
 
 # ── 2. idempotence ────────────────────────────────────────────
 head1 "2. idempotence — apply twice writes nothing"

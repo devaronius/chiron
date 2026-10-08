@@ -186,7 +186,7 @@
     "1.0.0": "c411e2fc958a820c61d17d2c7e8be053313a13a72475b6048c2f341b3d2ea8e7",
     "1.1.0": "c411e2fc958a820c61d17d2c7e8be053313a13a72475b6048c2f341b3d2ea8e7",
     "1.1.1": "b348b92ecf44b9d8210e26a0e0b3ee3e85029ccbdee1754e26a8dd3beaf76ec4",
-    "2.0.0": "eaca2c9bb2ee096fe709114b5ee494af6710fb56ad89e28ac0b6cf2edfbfbbed"
+    "2.0.0": "391868a361363f97e1117251f2bd3bd18f0258562faea19bc06e4b1a87486e00"
   },
   "seeds/maps/vault-map.md": {
     "1.0.0": "41357144a6b15d56e5c53f00f141e22c74a6670d17a4df43ac327a818f1086f4",
@@ -281,6 +281,21 @@
     "1.1.0": "51cec02a45bd5a9880557fd3ad95f88514c1693640006501ea61539056b86bc3",
     "1.1.1": "51cec02a45bd5a9880557fd3ad95f88514c1693640006501ea61539056b86bc3",
     "2.0.0": "e58cfe27f1f191708ddb9af22c86ff20d7dbff5c808698f6df29408bfdcf8882"
+  },
+  "skills/knowledge/pdf-builder/SKILL.md": {
+    "2.0.0": "9344ec9a559642175ec21a02ae261db56315f3c24665063a46268f4c3288b8d7"
+  },
+  "skills/knowledge/pdf-builder/md2pdf.py": {
+    "2.0.0": "c7372e1f9f96322320d070b70ad525c3c98f262626fd13265066bece6997b0e2"
+  },
+  "skills/knowledge/pdf-builder/pdf.css": {
+    "2.0.0": "62d48b142136cc1179bde3beb25475d4505bb373c5272763517dae32db4a1977"
+  },
+  "skills/knowledge/pdf-builder/tests/_harness.py": {
+    "2.0.0": "af591baaee8d536219e77c00de6fa2275430671d2d807881c07080f8a8cec6af"
+  },
+  "skills/knowledge/pdf-builder/tests/test_md2pdf.py": {
+    "2.0.0": "460b1497483e1ad78cccd8f58953b05ec88f1ba362bd0abf233c2aec49476d18"
   },
   "skills/productivity/grill-me/SKILL.md": {
     "1.1.0": "abb68a29fa143746b7d78b5d329de1f91195d5f83c704b57faa606601b656cde",

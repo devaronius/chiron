@@ -20,6 +20,7 @@ the project rather than to the vault.
 | `ideaverse-research-capture` | Does this new note pass, and where in the taxonomy does it belong? | `research-capture.py` |
 | `ideaverse-modeling` | What *is* this thing, what should it be called, and what decision did we make? | — |
 | `ideaverse-wiki-sync` | Is the compiled wiki stale, and how does it get reconciled? | `wiki-sync.py` |
+| `pdf-builder` | Turn a note into a PDF someone outside the team can read | `md2pdf.py` + `pdf.css` |
 
 `ideaverse-research-capture` is mechanical (does it pass? where does it go?);
 `ideaverse-modeling` is conceptual (what is this, and what do we call it?). A new concept
@@ -35,21 +36,23 @@ per-repo copy is exactly how the previous version of it drifted from the payload
 It is also the only skill here published as a plugin; see
 [`.claude-plugin/marketplace.json`](../../.claude-plugin/marketplace.json).
 
-**The other seven are payload, and payload is managed.** They ship with no project tokens, so
+**The other eight are payload, and payload is managed.** They ship with no project tokens, so
 the installer's three-way diff upgrades them in place for as long as nobody edits them. Edit
 one in a consumer repo and it becomes a permanent CONFLICT: the installer will report it on
 every run and never overwrite it. Project-specific behaviour belongs in
 `aiOS/aios.config.json`, and project-specific scripts in `aiOS/tools/ideaVerse/local/`, which
 the installer never manages.
 
-That is also why these seven are deliberately *not* in the plugin marketplace. A global plugin
+That is also why these eight are deliberately *not* in the plugin marketplace. A global plugin
 copy would sit alongside the managed per-repo copy under a different namespace, and the one
 you invoked would be a coin toss.
 
 ## Adding a skill here
 
 1. `skills/knowledge/<name>/SKILL.md` — the frontmatter `description` is what routes an agent
-   to it, so write it as a trigger, not a summary.
+   to it, so write it as a trigger, not a summary. A skill that carries a script should carry
+   a `tests/` directory beside it; it installs with the skill, so a consumer can verify their
+   own copy after an upgrade (`pdf-builder` is the worked example).
 2. Add a row to the intent table in [`seeds/maps/skill-map.md`](../../seeds/maps/skill-map.md),
    including the Invoke column, which must match the skill's `disable-model-invocation`.
 3. Write the CHANGELOG entry — a new skill is a **minor** bump — then

@@ -93,6 +93,7 @@ so you keep asking for outcomes rather than naming tools.
 | "is this note any good?" | `ideaverse-note-review` |
 | "does the vault contradict the code?" | `ideaverse-contradiction-check` |
 | "the wiki is stale" | `ideaverse-wiki-sync` |
+| "turn this note into a PDF I can send" | `pdf-builder` |
 | "grill me on this plan" | `grilling` |
 | "grill me, and write down what we settle" | `grill-with-docs` — type it, see below |
 

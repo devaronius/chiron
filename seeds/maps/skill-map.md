@@ -78,6 +78,14 @@ The librarian is a **subagent**, not a skill — delegate to it rather than load
 
 **Boundary:** the librarian **never authors knowledge** — it only reshapes what already exists. A new note is still `ideaverse-research-capture` / `ideaverse-modeling` in the main session. It applies deterministic fixes only; merges, splits, renames, deletions and effort retirements are written as proposals into `vault-report.md` for a human to approve.
 
+## Publishing
+
+| Intent | Skill | Invoke |
+|---|---|---|
+| Turn a note into a PDF to send to someone — a sprint write-up, a referral, a handover brief | **pdf-builder** | model |
+
+It renders markdown → HTML → headless Chrome, so Obsidian is never involved, and it knows the vault's dialect: frontmatter stripped, `[[wikilinks]]` flattened, callouts boxed, `sources:` rendered as a References appendix, mermaid fences drawn.
+
 ## Thinking / process
 
 | Intent | Skill | Invoke |
