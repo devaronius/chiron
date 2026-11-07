@@ -312,6 +312,10 @@ printf -- '---\nup: []\n---\n\nMy own note.\n' > "$T6/docs/ideaVerse/atlas/conce
 printf 'print("mine")\n' > "$T6/aiOS/tools/ideaVerse/local/mine.py"
 printf '\n# MY 2.0.0 EDIT\n' >> "$T6/aiOS/tools/ideaVerse/vault-lint.py"
 mine_lint=$(shasum < "$T6/aiOS/tools/ideaVerse/vault-lint.py")
+# A 2.0.0 adapter predates the non-negotiable markers; it is seeded, so the upgrade leaves
+# it for the user to merge, and the shipped parity suite has to say so until they do.
+cp "$T6/.claude/agents/inspector.md" "$WORK/inspector-adapter.md"
+perl -pi -e 's/<!-- nn:[a-z0-9-]+ --> //g' "$T6/.claude/agents/inspector.md"
 python3 - "$T6/aiOS/.chiron-install.json" <<'PY'
 import json, sys
 path = sys.argv[1]
@@ -359,11 +363,23 @@ if [ -e "$T6/.claude/skills/vault-wiki-sync" ]
 out=$(inst --target "$T6" --plan 2>&1)
 check "second plan moves nothing"   "$(sect "$out" MOVE '/')" "0"
 check "second plan adds nothing"    "$(sect "$out" ADD '/')"  "0"
+check "old adapter → REVIEW"        "$(sect "$out" REVIEW '.claude/agents/inspector.md')" "1"
+out=$( cd "$T6" && bash aiOS/tools/run-tests.sh 2>&1 )
+grep -q "test_every_runbook_rule_reaches_the_adapter" <<<"$out" \
+  && ok "unmerged adapter fails the parity suite after upgrade" \
+  || bad "unmerged adapter fails the parity suite after upgrade"
+cp "$WORK/inspector-adapter.md" "$T6/.claude/agents/inspector.md"     # the merge
+# Only the inspector suite: this tree renamed a skill with --map, and the vault suite's
+# doc-path check then (correctly) finds the librarian adapter naming the upstream path.
+out=$( cd "$T6" && python3 -m unittest discover -s aiOS/tools/inspector/tests 2>&1 ); rc=$?
+check "the merged adapter passes the inspector suite" "$rc" "0"
 
 # ── 9. a blocked move ────────────────────────────────────────
 head1 "9. blocked — both folders hold notes, so neither is touched"
 T7=$(new_repo blocked)
 inst --target "$T7" --apply --project-name "Both" >/dev/null
+python3 -c "import json,sys;p=sys.argv[1];m=json.load(open(p));m['chironVersion']='2.0.0';json.dump(m,open(p,'w'))" \
+  "$T7/aiOS/.chiron-install.json"
 mkdir -p "$T7/docs/ideaVerse/atlas"
 printf 'old\n' > "$T7/docs/ideaVerse/atlas/old.md"
 before=$( cd "$T7" && find docs -type f -exec shasum {} \; | sort | shasum )
@@ -371,8 +387,32 @@ out=$(inst --target "$T7" --plan 2>&1); rc=$?
 check "both folders → BLOCKED"      "$(sect "$out" BLOCKED 'docs/vault')" "1"
 check "a blocked move exits 1"      "$rc" "1"
 inst --target "$T7" --apply >/dev/null 2>&1
+out=$(inst --target "$T7" --apply 2>&1); rc=$?
+check "a blocked apply exits 1"     "$rc" "1"
+grep -q "nothing written" <<<"$out" && ok "a blocked apply says it wrote nothing" \
+                                    || bad "a blocked apply says it wrote nothing"
 check "apply leaves both folders as they were" \
   "$( cd "$T7" && find docs -type f -exec shasum {} \; | sort | shasum )" "$before"
+check "a blocked apply does not stamp the new version" \
+  "$(python3 -c "import json;print(json.load(open('$T7/aiOS/.chiron-install.json'))['chironVersion'])")" \
+  "2.0.0"
+
+# ── 10. someone else's vault/ ────────────────────────────────
+head1 "10. an unrelated vault/ is not a chiron vault"
+T8=$(new_repo hashicorp)
+mkdir -p "$T8/vault" && printf 'storage "file" {}\n' > "$T8/vault/config.hcl"
+out=$(inst --target "$T8" --plan 2>&1)
+grep -q "mode: install" <<<"$out" && ok "read as a fresh install, not an adopt" \
+                                  || bad "read as a fresh install, not an adopt"
+inst --target "$T8" --apply --project-name "Infra" >/dev/null 2>&1
+[ -d "$T8/docs/vault/atlas" ] && ok "notes land in docs/vault" || bad "notes land in docs/vault"
+if [ -e "$T8/vault/atlas" ] || [ -e "$T8/vault/vault" ]
+  then bad "nothing written into their vault/"; else ok "nothing written into their vault/"; fi
+T9=$(new_repo explicit)
+mkdir -p "$T9/vault/atlas" "$T9/vault/efforts"
+inst --target "$T9" --apply --vault-root docs --project-name "Explicit" >/dev/null 2>&1
+[ -f "$T9/docs/project-brief.md" ] && ok "--vault-root wins over detection" \
+                                   || bad "--vault-root wins over detection"
 
 printf '\n\033[1mResult:\033[0m %d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ] || exit 1

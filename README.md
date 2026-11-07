@@ -291,8 +291,8 @@ Renames and retirements go in `migrations.json`, applied in version order before
 
 A **move** renames a whole directory that may hold the consumer's own files — the notes
 folder, a `local/` escape hatch. It is judged by the disk rather than the version: it runs
-whenever the old directory exists and the new one holds no file, and when both hold files
-it is reported BLOCKED and neither is touched.
+whenever the old directory exists and the new one holds no file. When both hold files it
+is reported BLOCKED and `--apply` refuses to write anything at all until they are merged.
 
 ## License
 

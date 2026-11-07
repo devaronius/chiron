@@ -60,6 +60,27 @@ class TestReviewingWithoutChanging(ScopeCase):
         self.assertRefused('git -c core.fsmonitor=/tmp/x status')
         self.assertRefused('git -c diff.external=/tmp/x diff')
 
+    def test_no_config_reaches_git_by_another_spelling(self):
+        # Each of these sets config for one run, and config can name a command.
+        for command in ('git --config-env=core.fsmonitor=FOO status',
+                        'git --exec-path=/tmp/x status',
+                        'FOO=/tmp/x git --config-env=core.fsmonitor=FOO status',
+                        'GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.fsmonitor '
+                        'GIT_CONFIG_VALUE_0=/tmp/x git status',
+                        'GIT_EXTERNAL_DIFF=/tmp/x git diff',
+                        'ls; GIT_CONFIG_PARAMETERS=x git status'):
+            self.assertRefused(command)
+
+    def test_git_config_may_be_read_but_not_written(self):
+        self.assertAllowed('git config --get remote.origin.url')
+        self.assertAllowed('git config --list')
+        self.assertRefused('git config core.fsmonitor /tmp/x')
+        self.assertRefused('git config --global diff.external /tmp/x')
+
+    def test_harmless_global_flags_still_pass(self):
+        self.assertAllowed('git --no-pager log -1')
+        self.assertAllowed('git -P diff --stat')
+
     def test_a_refusal_names_the_verb_not_the_path_given_to_dash_c(self):
         reason = self.assertRefused('git -C /tmp/claude/scratchpad/pr812 commit -am wip')
         self.assertIn('`git commit`', reason)
@@ -239,6 +260,14 @@ class TestReportersAndSuites(ScopeCase):
             'python3 -m unittest discover -s /tmp/scratchpad/wt/aiOS/tools/inspector/tests 2>&1',
         ):
             self.assertAllowed(command)
+
+    def test_a_suite_outside_the_repo_and_the_scratchpad_is_refused(self):
+        for command in ('python3 -m unittest discover -s /Users/x/other/aiOS/tools/vault/tests',
+                        'python3 -m unittest discover -s ../other/aiOS/tools/vault/tests',
+                        'python3 -m unittest discover -s /tmp/x/../../etc/aiOS/tools/a/tests'):
+            self.assertRefused(command)
+        self.assertAllowed('python3 -m unittest discover -s '
+                           f'{scope.REPO_ROOT}/aiOS/tools/vault/tests')
 
     def test_the_module_switch_opens_nothing_but_unittest_discovery(self):
         for command in (

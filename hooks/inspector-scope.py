@@ -99,6 +99,16 @@ GIT_READONLY = {
 # `-c key=value` is deliberately absent: a config override can run a command
 # (`core.fsmonitor`, `diff.external`), so `git -c … diff` stays refused.
 GIT_VALUE_OPTIONS = {'-C', '--git-dir', '--work-tree', '--namespace'}
+# The only other global options let through. Anything else before the subcommand is
+# refused rather than skipped: `-c` and `--config-env` set config for one run, and config
+# can name a command (`core.fsmonitor`, `diff.external`) that the read-only verb then runs.
+GIT_GLOBAL_FLAGS = {'--no-pager', '-P', '--version', '--help'}
+# `git config` reads or writes; only the reading forms are let through, because a written
+# `core.fsmonitor` is run by the very next `git status`.
+GIT_CONFIG_READ = {'--get', '--get-all', '--get-regexp', '--list', '-l'}
+# Git reads config from the environment too (`GIT_CONFIG_COUNT`/`_KEY_n`/`_VALUE_n`,
+# `GIT_CONFIG_PARAMETERS`, `GIT_EXTERNAL_DIFF`), and `segments()` drops a leading `X=…`.
+GIT_ENV = re.compile(r'(?:^|[\s;|&(])GIT_\w*=')
 GIT_WORKTREE_OK = {'add', 'list', 'remove', 'prune'}
 
 # `python3` is allowed ONLY as a launcher for a named script — never `-c`, never a
@@ -162,7 +172,7 @@ REQUIRED_FLAGS = {'aiOS/tools/vault/vault-report.py': '--stdout'}
 # harmless; `-t` would move the import root and is refused by not being matched.
 UNITTEST_RE = re.compile(
     r'^python3?\s+(?:-I\s+)?-m\s+unittest\s+discover\s+-s\s+'
-    r'\S*(?:\.claude/hooks/tests|\.claude/skills/[\w-]+/tests|aiOS/tools/[\w-]+/tests)/?'
+    r'(\S*(?:\.claude/hooks/tests|\.claude/skills/[\w-]+/tests|aiOS/tools/[\w-]+/tests))/?'
     r'(?:\s+-p\s+[\w*.]+)?(?:\s+-v)?(?:\s+2>(?:&1|/dev/null))?\s*$')
 
 # The repo's own test runner. A PR body's test counts are among the most-quoted and
@@ -190,6 +200,20 @@ REPORTER_RE = re.compile(
     '|'.join(re.escape(name) for name in READ_ONLY_FLAGS) +
     r'))\b(.*)$'
 )
+
+def own_suite(path: str) -> bool:
+    """A suite path is this repo's own, or sits in a worktree under the scratchpad.
+
+    The pattern above only checks the path's tail, so any directory anywhere ending in
+    `aiOS/tools/x/tests` would match; this pins it to the repo or the reviewer's test bed.
+    """
+    if '..' in pathlib.PurePath(path).parts:
+        return False
+    target = pathlib.Path(path).expanduser()
+    if not target.is_absolute():
+        return True                              # relative: resolved against the repo
+    return target.is_relative_to(REPO_ROOT) or 'scratchpad' in target.parts
+
 
 SEPARATORS = re.compile(r'\|\||&&|[;|\n]')
 HEREDOC = re.compile(r'<<-?\s*[\'"]?(\w+)[\'"]?')
@@ -236,6 +260,10 @@ def refuse_git(segment: str) -> str | None:
             skip = True
         elif not word.startswith('-'):
             subs.append(word)
+        elif not subs and word.split('=', 1)[0] not in GIT_GLOBAL_FLAGS:
+            return (f'Run git without `{word}`: before the subcommand only '
+                    f'{", ".join(sorted(GIT_VALUE_OPTIONS | GIT_GLOBAL_FLAGS))} are allowed, '
+                    'because a config override can name a command for git to run.')
     if not subs:
         return None  # bare `git` / `git --version`
     sub = subs[0]
@@ -247,6 +275,9 @@ def refuse_git(segment: str) -> str | None:
             return ('git worktree add must target a path under your scratchpad — a '
                     'worktree inside the repo is still the repo')
         return None
+    if sub == 'config' and not GIT_CONFIG_READ & set(words):
+        return ('Read config with `git config --get <key>` or `--list`; writing it is '
+                'refused, since a written `core.fsmonitor` runs on the next `git status`.')
     if sub not in GIT_READONLY:
         return (f'Review a PR branch with `git worktree add` under your scratchpad, and read '
                 f'with the read-only verbs ({", ".join(sorted(GIT_READONLY))}). `git {sub}` is '
@@ -268,8 +299,13 @@ def refuse_python(segment: str) -> str | None:
     unsplit `&` or inside `$(…)` — is not inspected at all. Tracked as #47470.
     """
     segment = segment.replace('"', '').replace("'", '')
-    if (SCRIPT_RE is not None and SCRIPT_RE.match(segment)) or UNITTEST_RE.match(segment):
+    if SCRIPT_RE is not None and SCRIPT_RE.match(segment):
         return None
+    suite = UNITTEST_RE.match(segment)
+    if suite:
+        return None if own_suite(suite.group(1)) else (
+            f'Discover a tests/ directory of this repo or of a worktree under your '
+            f'scratchpad; {suite.group(1)} is neither.')
     found = REPORTER_RE.match(segment)
     if not found:
         named = ', '.join(SCRIPTS) if SCRIPTS else 'nothing (no pull-request client ' \
@@ -301,6 +337,9 @@ def refuse_bash(command: str) -> str | None:
     if HEREDOC.search(command):
         return ('Run the command inline, not as a heredoc — a heredoc smuggles an '
                 'interpreter past the allowlist.')
+    if GIT_ENV.search(QUOTED.sub('', command)):
+        return ('Run git without a `GIT_*=` assignment: git reads config and commands '
+                'from those variables, which walks around the read-only verbs.')
     for segment in segments(command):
         words = segment.split()
         head = words[0]

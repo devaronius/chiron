@@ -7,7 +7,33 @@ unit** — `VERSION` covers everything under `aiOS/`, `seeds/`, `skills/` and `h
 - **minor** — new files, skills or templates; backward compatible
 - **patch** — fixes to existing files
 
-## [3.0.0] — unreleased
+## [3.0.1] — 2026-11-07
+
+Fixes from the QA pass on 3.0.0.
+
+### Fixed
+
+- **A repo with an unrelated `vault/` directory was taken for an existing install.** With
+  no manifest, any `vault/` (HashiCorp, Ansible) set the vault to the repo root, ignored
+  `--vault-root`, and switched the mode to adopt. A notes folder is now recognised by its
+  ACE layout (`atlas/` and `efforts/`), and an explicit `--vault-root` or `--at-repo-root`
+  wins over detection.
+- **A BLOCKED directory move now refuses the whole `--apply`.** It used to move nothing but
+  still write the new seeds, re-key the manifest and stamp the new version — after which
+  the migration and its note never ran again.
+- **`bootstrap-vault`'s pre-upgrade lint baseline** ran `aiOS/tools/vault/vault-lint.py`,
+  which does not exist yet on a 2.x tree; it now uses whichever tools directory is there.
+- **The 3.0.0 migration note** now says to merge the REVIEW on `.claude/agents/inspector.md`:
+  until then the inspector grades `blocking`/`should-fix`, which the grader refuses, and the
+  adapter-parity suite fails.
+- **`inspector-scope.py`** — three ways config could reach git and name a command for a
+  read-only verb to run: `--config-env` (and any global option but `-C`, `--git-dir`,
+  `--work-tree`, `--namespace`, `--no-pager`, `-P`), a `GIT_*=` environment assignment, and a
+  written `git config` (only `--get`, `--get-all`, `--get-regexp`, `--list` pass now). And
+  `unittest discover` accepted any directory whose path merely ended in `…/tests`; it is now
+  pinned to the repo and to worktrees under the scratchpad.
+
+## [3.0.0] — 2026-11-07
 
 The ideaVerse is renamed to the **vault**, and the inspector grades on a five-level ladder.
 The rename moves directories that hold your own notes, so this is a major: `migrations.json`
