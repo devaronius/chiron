@@ -4,8 +4,8 @@
 
 A library of agent skills, distributed as Claude Code plugins.
 
-The one it's named for installs a portable **ideaVerse** into any repo — an Obsidian-style
-knowledge vault, the tooling that keeps it honest, and the skills that use it — and
+The one it's named for installs a portable **vault** into any repo — Obsidian-style
+knowledge notes, the tooling that keeps them honest, and the skills that use it — and
 **upgrades it in place** without clobbering what you've written. The rest stand on their own
 and need no vault at all.
 
@@ -15,7 +15,7 @@ Add the marketplace once, then install whichever plugins you want:
 
 ```
 /plugin marketplace add devaronius/chiron
-/plugin install chiron@chiron                  # the ideaVerse installer
+/plugin install chiron@chiron                  # the vault installer
 /plugin install chiron-productivity@chiron     # grilling — useful with or without a vault
 ```
 
@@ -28,12 +28,12 @@ claude plugin install chiron@chiron
 
 | Plugin | Gives you | Needs a vault? |
 |---|---|---|
-| `chiron` | `/chiron:bootstrap-ideaverse` — installs, adopts, upgrades or verifies an ideaVerse in any repo | no, it creates one |
+| `chiron` | `/chiron:bootstrap-vault` — installs, adopts, upgrades or verifies a vault in any repo | no, it creates one |
 | `chiron-productivity` | `/chiron-productivity:grill-me` and `/chiron-productivity:grill-with-docs` | no |
 
 Plugin skills are **namespaced by plugin name**, which is why they read
-`/chiron:bootstrap-ideaverse` rather than `/bootstrap-ideaverse`. The vault skills
-(`ideaverse-wiki-sync`, `ideaverse-modeling`, `ideaverse-research-capture`, …) are deliberately *not* in a plugin:
+`/chiron:bootstrap-vault` rather than `/bootstrap-vault`. The vault skills
+(`vault-wiki-sync`, `vault-modeling`, `vault-research-capture`, …) are deliberately *not* in a plugin:
 the installer writes them into each repo as managed files so they upgrade in place under the
 three-way diff below, and a global plugin copy would shadow that with a second, unmanaged one.
 
@@ -45,11 +45,11 @@ The installer skill works standalone — it fetches its own payload, so a plain 
 ```bash
 git clone https://github.com/devaronius/chiron ~/.chiron
 mkdir -p ~/.claude/skills
-cp -r ~/.chiron/skills/knowledge/bootstrap-ideaverse ~/.claude/skills/
+cp -r ~/.chiron/skills/knowledge/bootstrap-vault ~/.claude/skills/
 ```
 
 Skills are discovered when a session starts, so open a fresh one — then
-`/bootstrap-ideaverse` (no namespace, this way) is available in every repo. Note that
+`/bootstrap-vault` (no namespace, this way) is available in every repo. Note that
 `~/.chiron` **stays**: the skill reads the framework from that checkout and refreshes it with
 `git -C ~/.chiron pull --ff-only` on every run, so there is exactly one copy and it cannot
 drift from what your repos have installed. Delete it and the skill has nothing to install.
@@ -63,7 +63,7 @@ copy is precisely how the previous version of it drifted from its own payload.
 
 Open Claude Code in the repo that should have a vault and ask for it in plain language:
 
-> set up an ideaVerse here
+> set up a vault here
 
 Nothing to memorise, and nothing to tell it about the current state: the skill runs
 `chiron-install.py --plan` before it writes anything and detects which of four situations it
@@ -71,9 +71,9 @@ is in, rather than guessing from a directory listing.
 
 | You ask | It finds | What happens |
 |---|---|---|
-| "set up an ideaVerse here" | no vault | interviews you, shows a plan, applies it |
-| "set up an ideaVerse here" | a vault, but no chiron manifest | *adopts* it: classifies every file by hash, applies the safe part, reports the rest |
-| "upgrade the ideaVerse" | a manifest older than chiron | migrations, then the three-way diff below |
+| "set up a vault here" | no vault | interviews you, shows a plan, applies it |
+| "set up a vault here" | a vault, but no chiron manifest | *adopts* it: classifies every file by hash, applies the safe part, reports the rest |
+| "upgrade the vault" | a manifest older than chiron | migrations, then the three-way diff below |
 | "has the vault drifted?" | a current manifest | reports drift and writes nothing |
 
 You always see the plan — ADD / UPDATE / CONFLICT / REVIEW / RETIRE / KEEP per file — before
@@ -86,13 +86,13 @@ so you keep asking for outcomes rather than naming tools.
 
 | Ask for | Skill |
 |---|---|
-| "is the vault healthy?" | `ideaverse-vault-health` |
-| "what isn't documented at all?" | `ideaverse-coverage-gap` |
-| "capture this as a note" | `ideaverse-research-capture` |
-| "what do we actually mean by *shipment*?" | `ideaverse-modeling` |
-| "is this note any good?" | `ideaverse-note-review` |
-| "does the vault contradict the code?" | `ideaverse-contradiction-check` |
-| "the wiki is stale" | `ideaverse-wiki-sync` |
+| "is the vault healthy?" | `vault-health` |
+| "what isn't documented at all?" | `vault-coverage-gap` |
+| "capture this as a note" | `vault-research-capture` |
+| "what do we actually mean by *shipment*?" | `vault-modeling` |
+| "is this note any good?" | `vault-note-review` |
+| "does the vault contradict the code?" | `vault-contradiction-check` |
+| "the wiki is stale" | `vault-wiki-sync` |
 | "turn this note into a PDF I can send" | `pdf-builder` |
 | "QA this change" / "review PR 812" | the `inspector` agent |
 | "go find this out while I'm away" | the `researcher` agent |
@@ -101,7 +101,7 @@ so you keep asking for outcomes rather than naming tools.
 
 Two wrappers are yours to invoke by name rather than the model's to pick: **`grill-me`** for a
 plain grilling session, **`grill-with-docs`** to also capture what the interview settles as
-ideaVerse notes. From the plugin they are `/chiron-productivity:grill-me`; installed into a
+vault notes. From the plugin they are `/chiron-productivity:grill-me`; installed into a
 repo by the vault installer, plain `/grill-me`. For the whole diagnose-and-fix sweep, delegate
 to the **librarian** subagent instead — it reshapes what exists and never authors knowledge.
 
@@ -122,12 +122,12 @@ python3 ~/.chiron/tools/chiron-install.py --target . --apply --project-name "Acm
 │   ├── runbooks/                # vendor-neutral agent runbooks (librarian, day note, …)
 │   ├── schedules/               # scheduled routines, one per file
 │   ├── templates/
-│   └── tools/                   # ideaVerse/ · wiki/ — ideaVerse/local/ is yours, unmanaged
+│   └── tools/                   # vault/ · wiki/ · inspector/ — vault/local/ is yours, unmanaged
 ├── docs/                        # or the repo root, your choice
 │   ├── <briefing>.md            # who this project is, how an agent should work here
 │   ├── CLAUDE.md
-│   ├── ideaVerse/               # ACE: atlas/ · calendar/ · efforts/ · +/
-│   └── wiki/                    # compiled, queryable summary of ideaVerse — generated
+│   ├── vault/                   # ACE: atlas/ · calendar/ · efforts/ · +/
+│   └── wiki/                    # compiled, queryable summary of the vault — generated
 ├── .claude/skills/              # the framework meta-skills, each with its tests
 ├── .claude/hooks/               # session digest + the two agent scope hooks (you wire them)
 └── .claude/agents/              # thin harness adapters: librarian · researcher · inspector
@@ -177,6 +177,14 @@ than by their own good intentions: an allowlist of command heads, writes confine
 note or a scratchpad, and no route to a tracker except the client the project names in
 `agents.*.scripts`. chiron ships no such client — that part is yours.
 
+What it does ship is the inspector's **grader**, `aiOS/tools/inspector/grading.py`. Every
+finding sits on a five-level ladder — `critical` · `high` · `medium` · `low` · `note` — and
+names a rule from `aiOS/runbooks/inspector/severity-rules.toml`, whose level is a floor.
+The grader refuses a `critical` finding with no reproduced evidence, a grade under its
+rule's floor, and a recommendation the grades contradict (medium or above means *Waiting for
+author*). The inspector runs it on its own report in either mode, and your client calls it
+before posting. The rule file is seeded: the floors are your team's call.
+
 ## Upgrading without losing your work
 
 Running the skill on an existing vault does a **three-way comparison** per file: what's on
@@ -199,8 +207,8 @@ Two file classes, distinguished by which directory they ship from:
 
 - **`aiOS/`, `skills/`, `hooks/`** — *managed*. No project tokens, so they upgrade
   automatically for as long as you don't edit them. Skills ship filed by category
-  ([`skills/knowledge/ideaverse-wiki-sync`](skills/knowledge/README.md)) and install flat, as
-  `.claude/skills/ideaverse-wiki-sync`.
+  ([`skills/knowledge/vault-wiki-sync`](skills/knowledge/README.md)) and install flat, as
+  `.claude/skills/vault-wiki-sync`.
 - **`seeds/`** — *seeded*. Rendered once from your project's facts, then yours forever. When
   upstream moves, you get a diff and a merge, never an overwrite. The maps live here, which
   is why your own routing rules survive every upgrade.
@@ -208,7 +216,7 @@ Two file classes, distinguished by which directory they ship from:
 **Configure behaviour; edit prose freely.** Everything project-specific about *how chiron
 runs* — the briefing note's name, the wiki skill's name, capture vocabulary, repo-root mode —
 is in `aiOS/aios.config.json`. Editing a **script** instead forks it permanently from upstream
-bug fixes, so project-specific scripts belong in `aiOS/tools/ideaVerse/local/`, which the installer
+bug fixes, so project-specific scripts belong in `aiOS/tools/vault/local/`, which the installer
 never manages.
 
 Editing a framework **prose** file — an agent runbook, a template, a map — is a different
@@ -233,12 +241,12 @@ chiron/
 ```
 
 Both plugin entries use `"source": "./"` with `"strict": false`, so each names the skill
-directories it exposes (`./skills/knowledge/bootstrap-ideaverse`, `./skills/productivity`) and
+directories it exposes (`./skills/knowledge/bootstrap-vault`, `./skills/productivity`) and
 nothing under `skills/` needs its own `plugin.json`. Adding a skill to a published category
 means editing one file — or nothing at all, if the category is already listed.
 
 A category documents itself: [`skills/knowledge/README.md`](skills/knowledge/README.md) covers
-the seven vault skills, which script each owns, why `bootstrap-ideaverse` is the only one not
+the seven vault skills, which script each owns, why `bootstrap-vault` is the only one not
 installed into a repo, and the checklist for adding another.
 
 The framework is versioned as **one unit**: `VERSION` covers every payload directory —
@@ -277,8 +285,14 @@ Renames and retirements go in `migrations.json`, applied in version order before
 [{"version": "1.1.0",
   "renames": [["{vault}/aiOS/old.py", "aiOS/new.py"]],
   "retires": ["{vault}/aiOS/templates/gone.md"],
+  "moves": [["{vault}/oldNotes", "{vault}/notes"]],
   "note": "surfaced to the agent for follow-up a file copy can't express"}]
 ```
+
+A **move** renames a whole directory that may hold the consumer's own files — the notes
+folder, a `local/` escape hatch. It is judged by the disk rather than the version: it runs
+whenever the old directory exists and the new one holds no file, and when both hold files
+it is reported BLOCKED and neither is touched.
 
 ## License
 

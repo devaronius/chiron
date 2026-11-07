@@ -75,11 +75,11 @@ class TestBashAllowlist(ScopeCase):
 
 class TestInterpreters(ScopeCase):
     def test_the_two_scripts_that_own_board_and_vault_mechanics_are_allowed(self):
-        self.assertAllowed('python3 aiOS/tools/ideaVerse/research-capture.py check n.md')
-        self.assertAllowed('python3 aiOS/tools/ideaVerse/research-capture.py check note.md')
+        self.assertAllowed('python3 aiOS/tools/vault/research-capture.py check n.md')
+        self.assertAllowed('python3 aiOS/tools/vault/research-capture.py check note.md')
 
     def test_an_absolute_path_to_the_same_script_is_allowed(self):
-        self.assertAllowed('python3 /repo/aiOS/tools/ideaVerse/research-capture.py check n.md')
+        self.assertAllowed('python3 /repo/aiOS/tools/vault/research-capture.py check n.md')
 
     def test_inline_python_is_refused_because_it_reopens_everything(self):
         self.assertIn('may only launch', self.assertRefused('python3 -c "import os"'))
@@ -135,7 +135,7 @@ class TestWriteScope(unittest.TestCase):
         return str(REPO_ROOT / relative)
 
     def test_the_researchers_one_note_is_allowed(self):
-        self.assertIsNone(scope.refuse_write(self.repo('docs/ideaVerse/atlas/concepts/x.md')))
+        self.assertIsNone(scope.refuse_write(self.repo('docs/vault/atlas/concepts/x.md')))
 
     def test_a_scratchpad_path_is_allowed_for_answer_files_and_probe_output(self):
         self.assertIsNone(scope.refuse_write('/tmp/session/scratchpad/answer.md'))
@@ -145,7 +145,7 @@ class TestWriteScope(unittest.TestCase):
 
     def test_code_and_harness_paths_are_refused(self):
         self.assertIsNotNone(scope.refuse_write(self.repo('modules/core/lib/x.dart')))
-        self.assertIsNotNone(scope.refuse_write(self.repo('.claude/skills/ideaverse-wiki-sync/SKILL.md')))
+        self.assertIsNotNone(scope.refuse_write(self.repo('.claude/skills/vault-wiki-sync/SKILL.md')))
 
     def test_a_path_outside_the_repository_is_refused(self):
         self.assertIn('outside the repository', scope.refuse_write('/etc/hosts'))
@@ -157,7 +157,7 @@ class TestWriteScope(unittest.TestCase):
         # The harness invokes hooks from the project directory, but a relative path must
         # not mean different things by caller — it now resolves against the repo root.
         import os
-        note = 'docs/ideaVerse/atlas/concepts/x.md'
+        note = 'docs/vault/atlas/concepts/x.md'
         cwd = os.getcwd()
         try:
             os.chdir(REPO_ROOT)
@@ -184,12 +184,12 @@ class TestProtectedPaths(unittest.TestCase):
         # .resolve(): on macOS tempfile hands back /var/... while resolve() yields
         # /private/var/..., and refuse_write compares a resolved path to REPO_ROOT.
         root = pathlib.Path(self._dir.name).resolve()
-        self.vault = root / 'docs' / 'ideaVerse'
+        self.vault = root / 'docs' / 'vault'
         self.works = self.vault / 'efforts' / 'works'
         self.works.mkdir(parents=True)
         self.addCleanup(self._dir.cleanup)
         for attr, value in (('REPO_ROOT', root),
-                            ('PROTECTED', ('docs/ideaVerse/efforts/works/',))):
+                            ('PROTECTED', ('docs/vault/efforts/works/',))):
             patch = mock.patch.object(scope, attr, value)
             patch.start()
             self.addCleanup(patch.stop)
@@ -225,11 +225,11 @@ class TestScratchpad(unittest.TestCase):
         with tempfile.TemporaryDirectory() as raw:
             root = (pathlib.Path(raw).resolve()) / 'scratchpad' / 'MobileCarrier'
             (root / 'lib').mkdir(parents=True)
-            (root / 'docs' / 'ideaVerse').mkdir(parents=True)
+            (root / 'docs' / 'vault').mkdir(parents=True)
             with mock.patch.object(scope, 'REPO_ROOT', root):
                 self.assertIsNotNone(scope.refuse_write(str(root / 'lib' / 'main.dart')))
                 self.assertIsNone(
-                    scope.refuse_write(str(root / 'docs' / 'ideaVerse' / 'n.md')))
+                    scope.refuse_write(str(root / 'docs' / 'vault' / 'n.md')))
 
     def test_a_directory_merely_named_like_one_is_not_a_scratchpad(self):
         self.assertIsNotNone(scope.refuse_write('/tmp/scratchpadding/answer.md'))

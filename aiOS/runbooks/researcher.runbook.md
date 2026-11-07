@@ -100,7 +100,7 @@ Three sections of that template are **not optional for you**, because they are w
 Then check it before you publish, rather than discovering it is malformed after the change exists:
 
 ```bash
-python3 aiOS/tools/ideaVerse/research-capture.py check <note path>
+python3 aiOS/tools/vault/research-capture.py check <note path>
 ```
 
 It validates complete frontmatter, resolvable wikilinks, a basename unique across the vault, and a body of real length. Fix what it reports and re-run until it passes.

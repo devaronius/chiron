@@ -12,7 +12,7 @@ main session — so nothing here constrains a human at the keyboard.
 Two rules:
   Bash  — an ALLOWLIST of command heads. Arbitrary interpreters are refused, because
           `python3 -c "import subprocess..."` reopens everything the list closes.
-  Write — paths under docs/ideaVerse/ or a scratchpad only, and never a map's work note.
+  Write — paths under docs/vault/ or a scratchpad only, and never a map's work note.
           `publish` refuses to *commit* the same set; this stops it being written at all.
 
 Exit codes (PreToolUse contract):
@@ -44,8 +44,8 @@ _AGENTS = (CONFIG.get('agents') or {}).get(AGENT) or {}
 
 #: Where the notes live, from config rather than assumed: a hook that guards the wrong
 #: directory is worse than none, because it reads as protection.
-VAULT = ('ideaVerse/' if CONFIG.get('vaultAtRepoRoot')
-         else f"{CONFIG.get('vaultDir', 'docs')}/ideaVerse/")
+VAULT = ('vault/' if CONFIG.get('vaultAtRepoRoot')
+         else f"{CONFIG.get('vaultDir', 'docs')}/vault/")
 
 #: Vault paths this agent may not write even though they are inside the vault — the
 #: notes some other session owns exclusively. Repo-relative prefixes, from
@@ -66,7 +66,7 @@ ALLOWED_HEADS = {
 # before publishing it is the job; anything else the project binds in
 # `agents.researcher.scripts` (its tracker client, typically), which is how an
 # unattended run reaches a board at all without a general interpreter.
-SCRIPTS = ('aiOS/tools/ideaVerse/research-capture.py',
+SCRIPTS = ('aiOS/tools/vault/research-capture.py',
            *(_AGENTS.get('scripts') or ()))
 SCRIPT_RE = re.compile(
     r'^python3?\s+\S*(?:' + '|'.join(re.escape(s) for s in SCRIPTS) + r')\b')

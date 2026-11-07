@@ -1,6 +1,6 @@
 # chiron
 
-The aiOS framework that `bootstrap-ideaverse` installs into other repos. Read `README.md`
+The aiOS framework that `bootstrap-vault` installs into other repos. Read `README.md`
 first — it covers the payload layout, the install/upgrade model and the release procedure.
 
 ## Git

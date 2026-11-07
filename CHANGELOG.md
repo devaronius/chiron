@@ -7,6 +7,66 @@ unit** — `VERSION` covers everything under `aiOS/`, `seeds/`, `skills/` and `h
 - **minor** — new files, skills or templates; backward compatible
 - **patch** — fixes to existing files
 
+## [3.0.0] — unreleased
+
+The ideaVerse is renamed to the **vault**, and the inspector grades on a five-level ladder.
+The rename moves directories that hold your own notes, so this is a major: `migrations.json`
+carries nine directory moves, a new migration kind that an upgrade applies before the diff.
+
+### Changed — the ideaVerse is now the vault
+
+*IdeaVerse* is the name of an external product, so the framework stops using it. The plain
+word *vault* was already what the tooling said everywhere (`vault-lint`, `vault-map`).
+
+- **`<vault>/ideaVerse/` → `<vault>/vault/`** — the notes folder. `docs/` remains the
+  Obsidian root; `docs/vault/` is the notes inside it. In `vault_lib`, `IDEAVERSE_DIR` is now
+  `SOURCE_DIR`, with the old name kept as an alias so a `local/` script still runs.
+- **`aiOS/tools/ideaVerse/` → `aiOS/tools/vault/`**, `local/` included.
+- **The `ideaverse-*` skills → `vault-*`**, and `ideaverse-vault-health` → `vault-health`.
+- **The installer skill `bootstrap-ideaverse` → `bootstrap-vault`**, so the plugin command is
+  now `/chiron:bootstrap-vault`. A user-level copy installed by hand keeps the old name until
+  it is re-copied.
+- `.chiron-hashes.json` carries every moved path's history under its new name, so a file
+  that was pristine before the move is still provably pristine after it.
+
+### Added — directory moves in migrations
+
+- **`moves`: rename a whole directory, the consumer's own files with it.** Unlike `renames`
+  and `retires`, a move is judged by the disk, not by version: it runs when the old
+  directory exists and the new one holds no file, so an adopted vault with no manifest is
+  moved too. When both hold files it is **BLOCKED** — reported, exit 1, neither touched,
+  because merging two trees of notes is a human's call.
+- Renames and moves **chain**: a 1.x tree goes through the 2.0.0 file renames and the 3.0.0
+  moves in one run, and the plan judges each file at its oldest path. A manifest record (and
+  a `--map` name) written under an old path follows the file to the new one.
+
+### Added — the inspector's severity ladder
+
+- **`critical` · `high` · `medium` · `low` · `note`** replaces `blocking` · `should-fix` ·
+  `note`. Each level states what it can prove: `critical` carries `failure` and `evidence`
+  (reproduced), `high` a `failure` (named, not run), `medium` and `low` a `fix`. Medium or
+  above makes the recommendation `Waiting for author`; a capped review recommends
+  `Reviewed in part — nothing at medium or above in what I read`.
+- **`aiOS/runbooks/inspector/severity-rules.toml`** (seeded): every finding names a rule, and
+  a rule's `level` is a floor the inspector never grades under. An optional `ceiling` holds a
+  rule at report-only. The file is the team's; the inspector proposes rules, never writes.
+- **`aiOS/tools/inspector/grading.py`** — the checks, tracker-free. The inspector runs it on
+  its findings file in either mode; a project's PR client calls `load_report()` before
+  `sync`. It refuses a missing `evidence`, a grade under a floor or over a ceiling, a posted
+  finding with no `fix`, a follow-up with no `target`, a report written for another PR, and
+  a recommendation the grades contradict.
+- **Runbook**: `follow_ups`, `unverified` and `checked` beside the findings; optional `body`
+  and `policy` client verbs (a PR-body check posted under rule `pr-body`, and build status
+  for pending boxes); prose naming a mechanism counts as a claim for the guard check; a
+  bug's prose read from its repro fields; findings files named `findings-<pr>.json`.
+- **Non-negotiables carry `<!-- nn:slug -->` markers** in the runbook and the adapter, and
+  `aiOS/tools/inspector/tests/test_adapter_parity.py` fails when the two sets differ.
+- **`inspector-scope.py`**: `git ls-tree` and `git -C <path>` are read-only and allowed
+  (`-c` stays refused — a config override can run a command); `vault-report.py` is allowed
+  only with `--stdout`; the grader is allowed; and `python3 -m unittest discover -s` over
+  one of the repo's own `tests/` directories, so a reviewer can re-run one suite. Refusals
+  now say what to do instead.
+
 ## [2.0.0] — 2026-10-08
 
 Everything the MobileCarrier vault learned since 1.1.1, brought upstream. The layout moves,

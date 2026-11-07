@@ -2,7 +2,7 @@
 
 The two output skeletons for an API note. The procedure that fills them is [[api-note.runbook]] — read it first; this file is skeletons only.
 
-## §A — Raw clipping → `ideaVerse/atlas/apis/<name>_api.md`
+## §A — Raw clipping → `vault/atlas/apis/<name>_api.md`
 
 ````markdown
 ---
@@ -61,5 +61,5 @@ created: {{date}}
 
 > Source is a raw Swagger dump — treat the code as the final authority on field shapes; the dev-endpoint contract can change, so re-clip to refresh.
 
-**Sources:** [<name>_api.md](../../ideaVerse/atlas/apis/<name>_api.md)
+**Sources:** [<name>_api.md](../../vault/atlas/apis/<name>_api.md)
 ````

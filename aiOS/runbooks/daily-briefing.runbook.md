@@ -24,11 +24,11 @@ Weekday mornings, before work starts — unattended, on a schedule. "Since the l
 
 Resolve "today" with `date +%F`. Then gather, in order:
 
-1. **Today's day note** — `ideaVerse/calendar/days/<today>.md`. The primary source. If it does not exist yet, say so and work from the rest.
+1. **Today's day note** — `vault/calendar/days/<today>.md`. The primary source. If it does not exist yet, say so and work from the rest.
 2. **The previous working day's note(s)** — what changed, and what carried over.
-3. **Projects** — `ideaVerse/efforts/projects/*.md` for live deadlines and status.
-4. **Works in progress** — `ideaVerse/efforts/works/*.md`.
-5. **The open-items lane** — `python3 aiOS/tools/ideaVerse/open-items.py --lane` for what is ripe, and `--lane agent` for what ran unattended. Report the lane; never re-route an item on the briefing's own initiative.
+3. **Projects** — `vault/efforts/projects/*.md` for live deadlines and status.
+4. **Works in progress** — `vault/efforts/works/*.md`.
+5. **The open-items lane** — `python3 aiOS/tools/vault/open-items.py --lane` for what is ripe, and `--lane agent` for what ran unattended. Report the lane; never re-route an item on the briefing's own initiative.
 6. **Repo activity** — the work itself, which the notes can only partly see:
    ```bash
    git log --since="<last-working-day> 00:00" --pretty=format:'%h %ad %s' --date=short --no-merges
@@ -56,14 +56,14 @@ Fill [[daily-briefing.template]] in order. Each section earns its place or says 
 
 ## Output
 
-Write to `ideaVerse/calendar/briefings/<today>.md` — one file per day, never overwriting a day note. Use the frontmatter from [[daily-briefing.template]], set `created`/`updated` to today, and list every source you used in `sources`.
+Write to `vault/calendar/briefings/<today>.md` — one file per day, never overwriting a day note. Use the frontmatter from [[daily-briefing.template]], set `created`/`updated` to today, and list every source you used in `sources`.
 
 ## Refresh the ledger
 
 If writing the briefing changed any `[status::]` or `[assignee::]` on an [[open_item]] in an owning note, regenerate the ledger:
 
 ```bash
-python3 aiOS/tools/ideaVerse/open-items.py
+python3 aiOS/tools/vault/open-items.py
 ```
 
 The owning note stays canonical; `open-items.md` is a generated view and is never hand-edited. Skip this only if the briefing raised or closed nothing.

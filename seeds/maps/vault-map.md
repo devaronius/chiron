@@ -8,7 +8,7 @@ sources: []
 aliases: ["Vault Map", "how to navigate the vault"]
 ---
 
-# Vault Map — how to navigate & work in the ideaVerse
+# Vault Map — how to navigate & work in the vault
 
 Your manual for finding things in this vault and filing new notes in the right place.
 
@@ -16,7 +16,7 @@ Your manual for finding things in this vault and filing new notes in the right p
 - **vault-map** — `/aiOS/maps/vault-map.md` — this file
 - **skill-map** — `/aiOS/maps/skill-map.md` — every skill you can use on my behalf
 
-`aiOS/` sits at the **repo root**; the notes sit in the **vault** (`{{VAULT_ROOT}}`). A command below is written from the repo root; a path like `ideaVerse/…` is vault-relative. Harness-specific entry points (`CLAUDE.md`, `AGENTS.md`) sit at the repo root and are not vault notes.
+`aiOS/` sits at the **repo root**; the notes sit in the **vault** (`{{VAULT_ROOT}}`). A command below is written from the repo root; a path like `vault/…` is vault-relative. Harness-specific entry points (`CLAUDE.md`, `AGENTS.md`) sit at the repo root and are not vault notes.
 
 **This map states rules, not history.** The incident behind a rule — counts, dates, what broke — belongs in the note that owns it, not here.
 
@@ -31,7 +31,7 @@ Your manual for finding things in this vault and filing new notes in the right p
 
 ### Compilation scope
 
-Compile from the whole `ideaVerse/` vault; which kind of note lives where is the folder taxonomy below, and is not restated in the wiki skill. Two areas need explicit handling:
+Compile from the whole `vault/` vault; which kind of note lives where is the folder taxonomy below, and is not restated in the wiki skill. Two areas need explicit handling:
 
 - **`efforts/projects/` → `wiki/projects`** — compile each project (scope, status, deadlines) to a project note.
 - **`calendar/days/`** — do **not** create per-day wiki notes; the wiki is not interested in the day itself. **Mine each day** for documentation-worthy content — issues reported, deadlines defined, decisions taken — and fold those into the concept / entity / project notes, which then cite the day note as a source. A day with nothing doc-worthy produces no wiki change.
@@ -42,7 +42,7 @@ The vault follows the **ACE** framework — Atlas = the mind's landscape, Calend
 
 - `atlas/` — the timeless knowledge landscape:
 	- `apis/` — raw Swagger/OpenAPI **clippings**, one per backend service, named `<service>_api.md`. Each pairs with a compiled entity note at `wiki/entities/<service>-api.md`. The clipping is verbatim — the code is the final authority on field shapes. **Read the entity note, not the clipping**: clippings run to tens of thousands of words, so open one only to check a specific schema, and `grep` it rather than reading it whole.
-	- `concepts/` — the project's ubiquitous language and how its code behaves, one term per note, from the [concept template](/aiOS/templates/concept.template.md) and maintained through the **ideaverse-modeling** skill. **Two kinds only**, declared as `kind:` in frontmatter:
+	- `concepts/` — the project's ubiquitous language and how its code behaves, one term per note, from the [concept template](/aiOS/templates/concept.template.md) and maintained through the **vault-modeling** skill. **Two kinds only**, declared as `kind:` in frontmatter:
 		- **`domain`** — a term from the business's own vocabulary.
 		- **`behaviour`** — how our code works: its rules, its gotchas, its open questions.
 	  Not concepts: a **dated check or investigation** goes to `calendar/research/`, and its one durable rule moves into the behaviour concept it belongs to. **How the team works** — the board, the work-item lifecycle, commit conventions — is a human process and goes to `documents/` as `kind: process`. Exception: `open_item` is a framework note and stays here. **Enforced:** `vault-lint` reports a missing or unknown kind as `[CONCEPT-KIND]`, and `research-capture.py check` fails on it.
@@ -95,7 +95,7 @@ Five steps, in order:
    - a **pointer to each atlas note** the knowledge moved to;
    - the line `Full history: git show <commit>:<path>`.
    Aim for about 100 tokens. Open items it still owns must be re-homed first (see [[open_item]]).
-5. **Recompile** with **ideaverse-wiki-sync**, and correct the wiki note too — it usually repeats whatever the source got wrong.
+5. **Recompile** with **vault-wiki-sync**, and correct the wiki note too — it usually repeats whatever the source got wrong.
 
 > [!warning] Step 2b — re-measure forecasts, never copy them
 > Step 2 catches a claim that was wrong when made. It misses one that was **right when made and has since expired** — the class a retirement pass actually promotes, because the work ships after the sentence is written and nobody edits it.
@@ -130,11 +130,11 @@ On a collision, the **more general / product-domain** meaning keeps the bare nam
 
 **A duplicate is worse than it looks.** A second note on an owned subject does not merely repeat it — it **drifts**, and the duplicate is the copy nobody re-verifies against the code. Prefer extending the owning note over adding a second one.
 
-Run `python3 aiOS/tools/ideaVerse/vault-lint.py` after adding notes — it reports basename duplicates as `[DUPE]`.
+Run `python3 aiOS/tools/vault/vault-lint.py` after adding notes — it reports basename duplicates as `[DUPE]`.
 
 ## Frontmatter dialects and link scope
 
-**Wikilinks resolve across the whole vault and `aiOS/`, not just `ideaVerse/`.** `[[vault-map]]` is this map, `[[{{BRIEFING_NOTE}}]]` is the briefing note, and a compiled summary lives in `wiki/`. Resolving against `ideaVerse/` alone reports mostly false broken links.
+**Wikilinks resolve across the whole vault and `aiOS/`, not just `vault/`.** `[[vault-map]]` is this map, `[[{{BRIEFING_NOTE}}]]` is the briefing note, and a compiled summary lives in `wiki/`. Resolving against `vault/` alone reports mostly false broken links.
 
 **Two frontmatter dialects are valid**, and a single required-field set wrongly fails one of them:
 
@@ -178,20 +178,20 @@ Narrow this rule to your project's actual scope — the repo paths, the team, th
 
 ## Notes that live outside the vault
 
-Some collections sit beside the ideaVerse rather than inside it. They are not part of the ACE structure, but they still follow the vault's note conventions (templates + frontmatter):
+Some collections sit beside the vault rather than inside it. They are not part of the ACE structure, but they still follow the vault's note conventions (templates + frontmatter):
 
-- `wiki/` — the **{{PROJECT_NAME}} concept wiki**: organized by concept (`topics/`, `concepts/`, `entities/`, `projects/`), synthesized from the raw notes in `ideaVerse/`. Entry point: `wiki/index.md`; machine-readable catalog: `wiki/wiki.catalog.jsonl`. Every note uses the [base template](/aiOS/templates/base.md) frontmatter (`up`/`related`/`created`).
+- `wiki/` — the **{{PROJECT_NAME}} concept wiki**: organized by concept (`topics/`, `concepts/`, `entities/`, `projects/`), synthesized from the raw notes in `vault/`. Entry point: `wiki/index.md`; machine-readable catalog: `wiki/wiki.catalog.jsonl`. Every note uses the [base template](/aiOS/templates/base.md) frontmatter (`up`/`related`/`created`).
 
-  > **The wiki is generated, never hand-edited.** It is a compiled summary layer; the `ideaVerse/` notes are the source of truth, and every wiki note traces back to a source via its `Sources:` line. To change wiki content, **do not edit `wiki/` directly** — write the data into the best-fit `ideaVerse/` source (or, if none fits, **create a new `ideaVerse/` note** in the right ACE location), then run **ideaverse-wiki-sync**, which detects drift, (re)compiles the affected notes, updates the catalog, and re-snapshots the baseline. A wiki-file write is only ever the *output* of that compile step.
+  > **The wiki is generated, never hand-edited.** It is a compiled summary layer; the `vault/` notes are the source of truth, and every wiki note traces back to a source via its `Sources:` line. To change wiki content, **do not edit `wiki/` directly** — write the data into the best-fit `vault/` source (or, if none fits, **create a new `vault/` note** in the right ACE location), then run **vault-wiki-sync**, which detects drift, (re)compiles the affected notes, updates the catalog, and re-snapshots the baseline. A wiki-file write is only ever the *output* of that compile step.
 
-  Drift detection on its own: `python3 aiOS/tools/wiki/wiki-sync.py` reports ideaVerse sources that were added/changed/deleted and need (re)compiling (baseline in `wiki/.wiki-sync.json`); `--update` re-snapshots after reconciling.
+  Drift detection on its own: `python3 aiOS/tools/wiki/wiki-sync.py` reports vault sources that were added/changed/deleted and need (re)compiling (baseline in `wiki/.wiki-sync.json`); `--update` re-snapshots after reconciling.
 
 ## How to create notes properly
 
 Always use a template in `/aiOS/templates`. When in doubt, use the [base template](/aiOS/templates/base.md), which carries the REQUIRED YAML fields every note starts with — `up`, `related`, `created` — plus `updated`, `tags`, `sources`, `aliases`, which are conventional and usually wanted.
 
 - [base](/aiOS/templates/base.md) — the required-frontmatter starting point for any note.
-- [concept.template](/aiOS/templates/concept.template.md) — a canonical domain-term / concept note (`atlas/concepts/`): base frontmatter + `aliases`/`sources`, a bold one-line definition, a "Not to be confused with" disambiguation, an open-questions callout, and an optional Decision block. Maintained via the **ideaverse-modeling** skill.
+- [concept.template](/aiOS/templates/concept.template.md) — a canonical domain-term / concept note (`atlas/concepts/`): base frontmatter + `aliases`/`sources`, a bold one-line definition, a "Not to be confused with" disambiguation, an open-questions callout, and an optional Decision block. Maintained via the **vault-modeling** skill.
 - [work.template](/aiOS/templates/work.template.md) — a discrete design/build effort (`efforts/works/`), carrying `status:` and its journey.
 - [api-note.template](/aiOS/templates/api-note.template.md) — a Swagger/OpenAPI clipping (`atlas/apis/`), which uses the **clipping** dialect; capture steps in [api-note.runbook](/aiOS/runbooks/api-note.runbook.md).
 - [day-note.template](/aiOS/templates/day-note.template.md) — a daily note (`calendar/days/<date>.md`); how to build it is in [day-note.runbook](/aiOS/runbooks/day-note.runbook.md).

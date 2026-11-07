@@ -23,7 +23,9 @@ Two rules:
           Arbitrary interpreters are refused, because `python3 -c "import
           urllib..."` reopens every endpoint the verb list closes. Named scripts
           are the exception, and only those that read: the configured tracker
-          client, and the vault reporters with their write flags refused.
+          client, the vault reporters and the grader with their write flags
+          refused, and `unittest discover` over one of the repo's own test
+          directories.
   Write — the session scratchpad only. The findings file and working notes; never
           the repository, in any checkout of it.
 
@@ -91,8 +93,12 @@ BUILD_HEADS = set(_AGENTS.get('buildCommands') or ())
 GIT_READONLY = {
     'fetch', 'diff', 'log', 'show', 'status', 'rev-parse', 'ls-remote', 'ls-files',
     'merge-base', 'blame', 'describe', 'cat-file', 'branch', 'remote', 'shortlog',
-    'rev-list', 'name-rev', 'symbolic-ref', 'config',
+    'rev-list', 'name-rev', 'symbolic-ref', 'config', 'ls-tree',
 }
+# Global options that take a value, so the value is not mistaken for the subcommand.
+# `-c key=value` is deliberately absent: a config override can run a command
+# (`core.fsmonitor`, `diff.external`), so `git -c … diff` stays refused.
+GIT_VALUE_OPTIONS = {'-C', '--git-dir', '--work-tree', '--namespace'}
 GIT_WORKTREE_OK = {'add', 'list', 'remove', 'prune'}
 
 # `python3` is allowed ONLY as a launcher for a named script — never `-c`, never a
@@ -130,16 +136,34 @@ SCRIPT_RE = (re.compile(r'^python3?\s+\S*(?:' +
 #                             reviewer silently bless the drift it was sent to find
 # `research-capture.py` and `note-review.py` have no write verb at all.
 READ_ONLY_FLAGS = {
-    'aiOS/tools/ideaVerse/vault-lint.py': ('-q', '--quiet', '-c', '--categories'),
+    'aiOS/tools/vault/vault-lint.py': ('-q', '--quiet', '-c', '--categories'),
     'aiOS/tools/wiki/wiki-sync.py': ('-q', '--quiet'),
-    'aiOS/tools/ideaVerse/research-capture.py': (),
-    'aiOS/tools/ideaVerse/note-review.py': ('--json',),
+    'aiOS/tools/vault/research-capture.py': (),
+    'aiOS/tools/vault/note-review.py': ('--json',),
     # No write path except `--fix`, which is absent from this list and therefore
     # refused. A reviewer is asked to reproduce a PR body's numbers; this is the
     # tool that measures them.
-    'aiOS/tools/ideaVerse/verify-claims.py': (),
+    'aiOS/tools/vault/verify-claims.py': (),
+    # The aiOS invariants in the report's last section live nowhere else. Bare, it
+    # rewrites vault-report.md, so `--stdout` is not just allowed but required.
+    'aiOS/tools/vault/vault-report.py': ('--stdout',),
+    # Reads a findings file and prints a verdict on it; it has no write path at all.
+    'aiOS/tools/inspector/grading.py': ('--pr',),
 }
 ALWAYS_OK = ('-h', '--help')
+# A reporter whose *default* is to write: allowed only with the flag that makes it print.
+REQUIRED_FLAGS = {'aiOS/tools/vault/vault-report.py': '--stdout'}
+
+# `python3 -m` is otherwise refused (`-m http.server`, `-m pip`), with one shape let
+# through: unittest discovery over a test directory of this repo's own Python — the same
+# thing `aiOS/tools/run-tests.sh` does per suite, which is already allowed. Running one
+# suite is what lets a reviewer re-run the test a PR body names, or a guard check,
+# without waiting on all of them. `-I` isolates the interpreter from the cwd and is
+# harmless; `-t` would move the import root and is refused by not being matched.
+UNITTEST_RE = re.compile(
+    r'^python3?\s+(?:-I\s+)?-m\s+unittest\s+discover\s+-s\s+'
+    r'\S*(?:\.claude/hooks/tests|\.claude/skills/[\w-]+/tests|aiOS/tools/[\w-]+/tests)/?'
+    r'(?:\s+-p\s+[\w*.]+)?(?:\s+-v)?(?:\s+2>(?:&1|/dev/null))?\s*$')
 
 # The repo's own test runner. A PR body's test counts are among the most-quoted and
 # most-decayed numbers in it, and a reviewer who cannot run the suite can only repeat
@@ -204,7 +228,14 @@ def segments(command: str) -> list[str]:
 
 def refuse_git(segment: str) -> str | None:
     words = segment.split()
-    subs = [w for w in words[1:] if not w.startswith('-')]
+    subs, skip = [], False
+    for word in words[1:]:
+        if skip:
+            skip = False
+        elif word in GIT_VALUE_OPTIONS:
+            skip = True
+        elif not word.startswith('-'):
+            subs.append(word)
     if not subs:
         return None  # bare `git` / `git --version`
     sub = subs[0]
@@ -217,10 +248,11 @@ def refuse_git(segment: str) -> str | None:
                     'worktree inside the repo is still the repo')
         return None
     if sub not in GIT_READONLY:
-        return (f'git {sub} is refused. You review; you do not change what you review — '
-                'no commit, push, reset, rebase, merge, cherry-pick or stash. Reviewing '
-                'a PR branch means `git worktree add` under your scratchpad, never '
-                '`checkout`, which would move the branch a human is standing on.')
+        return (f'Review a PR branch with `git worktree add` under your scratchpad, and read '
+                f'with the read-only verbs ({", ".join(sorted(GIT_READONLY))}). `git {sub}` is '
+                'not one of them: commit, push, reset, rebase, merge, cherry-pick, stash and '
+                '`checkout` change what you review, and `checkout` moves the branch a human '
+                'is standing on.')
     return None
 
 
@@ -236,24 +268,30 @@ def refuse_python(segment: str) -> str | None:
     unsplit `&` or inside `$(…)` — is not inspected at all. Tracked as #47470.
     """
     segment = segment.replace('"', '').replace("'", '')
-    if SCRIPT_RE is not None and SCRIPT_RE.match(segment):
+    if (SCRIPT_RE is not None and SCRIPT_RE.match(segment)) or UNITTEST_RE.match(segment):
         return None
     found = REPORTER_RE.match(segment)
     if not found:
         named = ', '.join(SCRIPTS) if SCRIPTS else 'nothing (no pull-request client ' \
                                                    'is configured for this repo)'
-        return (f'python3 may only launch {named}, or one of the read-only vault '
-                'reporters (' + ', '.join(sorted(READ_ONLY_FLAGS)) + '). '
-                'Use jq / wc / sort / uniq for computation.')
+        return (f'Launch {named}, one of the read-only reporters '
+                '(' + ', '.join(sorted(READ_ONLY_FLAGS)) + '), or '
+                '`-m unittest discover -s <a tests/ dir of this repo>`; this command is '
+                'none of them. Use jq / wc / sort / uniq for computation.')
     script = next(n for n in READ_ONLY_FLAGS if found.group(1).endswith(n))
     allowed = READ_ONLY_FLAGS[script] + ALWAYS_OK
-    for word in found.group(2).split():
+    words = found.group(2).split()
+    required = REQUIRED_FLAGS.get(script)
+    if required and required not in words:
+        return (f'Run {script} with `{required}`: without it the script writes its report '
+                'into the vault. You measure the vault; you do not change it.')
+    for word in words:
         if not word.startswith('-') or word == '-':
             continue                                    # a positional: a path or a term
         if word.split('=', 1)[0] in allowed:
             continue
-        return (f'{script} may only be given {", ".join(allowed) or "positional arguments"} '
-                f'— `{word}` is not one of them. The write flags are excluded by being '
+        return (f'Give {script} only {", ".join(allowed) or "positional arguments"} — '
+                f'`{word}` is not one of them. The write flags are excluded by being '
                 'absent from that list, so an abbreviation or a shell substitution does '
                 'not reach them either. You measure the vault; you do not change it.')
     return None
@@ -261,7 +299,8 @@ def refuse_python(segment: str) -> str | None:
 
 def refuse_bash(command: str) -> str | None:
     if HEREDOC.search(command):
-        return 'heredocs are refused — they smuggle an interpreter past the allowlist'
+        return ('Run the command inline, not as a heredoc — a heredoc smuggles an '
+                'interpreter past the allowlist.')
     for segment in segments(command):
         words = segment.split()
         head = words[0]
@@ -276,17 +315,17 @@ def refuse_bash(command: str) -> str | None:
                 return reason
             continue
         if head == 'curl':
-            return ('curl is refused. A tracker is reached only through the configured '
-                    f'client ({", ".join(SCRIPTS) or "none configured"}), which exposes '
-                    'no verb that votes or moves a work item — that is what keeps the '
-                    'sign-off with the human.')
+            return ('Reach a tracker through the configured client '
+                    f'({", ".join(SCRIPTS) or "none configured"}), which exposes no verb '
+                    'that votes or moves a work item — that is what keeps the sign-off '
+                    'with the human. curl could do both.')
         if RUNNER_RE.match(segment):
             continue
         if head in BUILD_HEADS or head in ALLOWED_HEADS:
             continue
-        return (f'`{head}` is not on the Inspector allowlist. You reach a tracker only '
-                f'through the configured client ({", ".join(SCRIPTS) or "none configured"}), '
-                'and you never modify what you review. If the task genuinely needs this, '
+        return (f'Use a command on the Inspector allowlist; `{head}` is not on it. Reach '
+                f'a tracker through the configured client ({", ".join(SCRIPTS) or "none configured"}), '
+                'and never modify what you review. If the task genuinely needs this, '
                 'stop and report it instead of working around it.')
     return None
 
@@ -299,8 +338,8 @@ def refuse_write(path: str) -> str | None:
     # to live under a directory of that name does not switch the whole scope off.
     if 'scratchpad' in target.parts:
         return None
-    return (f'{path} — the Inspector writes to its scratchpad and nowhere else. Not code '
-            '(you review it, you do not change it), not docs/, not .claude/. Report the '
+    return (f'Write to your scratchpad; {path} is outside it. The Inspector never writes '
+            'code (you review it, you do not change it), docs/ or .claude/. Report the '
             'finding; someone else makes the change.')
 
 

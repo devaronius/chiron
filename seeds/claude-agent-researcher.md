@@ -29,7 +29,7 @@ The question **verbatim**, the note path you own, and how to publish. If any is 
 
 1. **Orient:** the compiled catalog (`wiki/wiki.catalog.jsonl`) **before** any code search, then the note that owns the subject — read, never write.
 2. **Research:** shell search in the repo, web for external facts, read-only `curl` only if the question asks for a probe.
-3. **Author** one note from `aiOS/templates/research.template.md` — **Method**, **Limitations** and **Open** are not optional for you — then `python3 aiOS/tools/ideaVerse/research-capture.py check <path>` until it passes.
+3. **Author** one note from `aiOS/templates/research.template.md` — **Method**, **Limitations** and **Open** are not optional for you — then `python3 aiOS/tools/vault/research-capture.py check <path>` until it passes.
 4. **Publish** with the command you were given. The published change is the human gate; you propose, a human merges.
 5. **Hand off** if the dispatch named a review step — rewrite its generic question to name what you found, as questions for the reviewer, never dispositions.
 

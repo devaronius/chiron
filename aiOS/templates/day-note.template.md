@@ -8,7 +8,7 @@ sources: []
 aliases: []
 ---
 
-> **Day note for {{date}}** — `ideaVerse/calendar/days/{{date}}.md`. One file per working day: the raw daily log and a primary source that `wiki-sync` mines. Capture what happened today, keep it source-traceable, fill the sections that apply and delete the rest. **Summarise, don't transcribe.**
+> **Day note for {{date}}** — `vault/calendar/days/{{date}}.md`. One file per working day: the raw daily log and a primary source that `wiki-sync` mines. Capture what happened today, keep it source-traceable, fill the sections that apply and delete the rest. **Summarise, don't transcribe.**
 >
 > Frontmatter: `tags` = topical; `related` = `[[wikilinks]]` to projects, efforts, people, adjacent days; `sources` = every URL / ticket / link this note draws on.
 
@@ -53,7 +53,7 @@ _Summary of the day's relevant discussions, banter filtered. One subsection per 
 
 _Free-form, single-purpose headings for the substance of the day (Release, Resolved — `<issue>`, Design handoff, Grilling — `<topic>`, etc.)._
 
-# IdeaVerse / conventions added today
+# Vault / conventions added today
 
 _Anything that should outlive the day: new conventions, note updates, wiki compiles. Link the notes touched._
 
@@ -61,4 +61,4 @@ _Anything that should outlive the day: new conventions, note updates, wiki compi
 
 ---
 
-> **Building this note:** see [[day-note.runbook]] for the full how-to. In short: fill the at-a-glance callout, lift every task/deadline into its own section with glyph + [[open_item]] schema, summarise discussions (gist + decision + who), keep it source-traceable. After writing, re-run `python3 aiOS/tools/ideaVerse/open-items.py --today {{date}}` to refresh the [open-items ledger](../../open-items.md).
+> **Building this note:** see [[day-note.runbook]] for the full how-to. In short: fill the at-a-glance callout, lift every task/deadline into its own section with glyph + [[open_item]] schema, summarise discussions (gist + decision + who), keep it source-traceable. After writing, re-run `python3 aiOS/tools/vault/open-items.py --today {{date}}` to refresh the [open-items ledger](../../open-items.md).
