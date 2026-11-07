@@ -45,10 +45,13 @@ CHANGELOG_PATH = CHIRON_ROOT / "CHANGELOG.md"
 MARKETPLACE_PATH = CHIRON_ROOT / ".claude-plugin" / "marketplace.json"
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from importlib.machinery import SourceFileLoader  # noqa: E402
+import importlib.util  # noqa: E402
 
-_installer = SourceFileLoader(
-    "chiron_install", str(Path(__file__).resolve().parent / "chiron-install.py")).load_module()
+# `SourceFileLoader.load_module()` is gone in Python 3.15; a spec is the supported route.
+_spec = importlib.util.spec_from_file_location(
+    "chiron_install", Path(__file__).resolve().parent / "chiron-install.py")
+_installer = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_installer)
 
 
 def sha(data: bytes) -> str:
