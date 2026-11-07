@@ -76,6 +76,16 @@ VERSION_PATH = CHIRON_ROOT / "VERSION"
 MANIFEST_REL = "aiOS/.chiron-install.json"      # relative to the repo root
 LEGACY_MANIFEST_DIRS = ("docs/",)               # where <2.0.0 kept it, under the vault
 LEGACY_SOURCE_DIRS = ("ideaVerse",)             # the notes folder's name before 3.0.0
+
+
+def has_notes_folder(parent: Path) -> bool:
+    """Whether `parent` holds a chiron notes folder, under its current or a former name.
+
+    Recognised by its ACE layout, not its name: `vault/` is a common directory for other
+    things (HashiCorp, Ansible), and taking one of those for a vault would install into it.
+    """
+    return any((parent / d / "atlas").is_dir() and (parent / d / "efforts").is_dir()
+               for d in ("vault", *LEGACY_SOURCE_DIRS))
 SKILLS_DEST = ".claude/skills"
 AGENTS_DEST = ".claude/agents"
 HOOKS_DEST = ".claude/hooks"
@@ -545,7 +555,7 @@ def detect_mode(target: Path, vault_prefix: str, manifest: dict) -> str:
         # `aiOS/` may still sit inside the vault here: a pre-2.0.0 install has no manifest
         # once it is adopted, and adopting it is exactly what must happen next.
         has_vault = ((target / "aiOS").is_dir() or (vault / "aiOS").is_dir()
-                     or any((vault / d).is_dir() for d in ("vault", *LEGACY_SOURCE_DIRS)))
+                     or has_notes_folder(vault))
         return "adopt" if has_vault else "install"
     if semver(manifest.get("chironVersion", "0")) < semver(version()):
         return "upgrade"
@@ -638,12 +648,12 @@ def main() -> int:
             break
         manifest = read_json(target / cand / MANIFEST_REL, None) or {}
 
+    # With no manifest, an explicit flag wins; only without one is the layout guessed.
     vault_prefix = None
-    if not manifest:
+    if not manifest and not (args.vault_root or args.at_repo_root):
         for cand in ("docs/", ""):
             probe = target / cand
-            if (probe / "aiOS").is_dir() or any(
-                    (probe / d).is_dir() for d in ("vault", *LEGACY_SOURCE_DIRS)):
+            if (probe / "aiOS").is_dir() or has_notes_folder(probe):
                 vault_prefix = cand
                 break
     if vault_prefix is None:
@@ -701,9 +711,19 @@ def main() -> int:
         return 1 if any(a["action"] in ("conflict", "review", "keep", "blocked")
                         for a in actions) else 0
 
-    # No verify-mode short-circuit: with nothing writable, apply_plan only recomputes the
-    # manifest, and that is sometimes exactly the repair needed — a --map given on a run
-    # whose file came out CONFLICT has no other way to be recorded.
+    # A blocked directory move refuses the whole apply. Going ahead would write the new
+    # seeds into the destination, re-key the manifest and stamp the new version — after
+    # which the migration, and its after-upgrade note, never runs again.
+    if args.apply and any(a["action"] == "blocked" for a in actions):
+        report(mode, actions, migrations, applied=False)
+        print("✗ nothing written: a directory move is BLOCKED. Merge the two directories "
+              "named above, then run --apply again.")
+        return 1
+
+    # No verify-mode short-circuit. Verify can still write: a directory move is judged by
+    # the disk, not the version, so one can be due here; and recomputing the manifest is
+    # sometimes exactly the repair needed — a --map given on a run whose file came out
+    # CONFLICT has no other way to be recorded.
     if args.apply:
         new_manifest = apply_plan(target, vault_prefix, tokens, briefing,
                                   actions, migrations, manifest)

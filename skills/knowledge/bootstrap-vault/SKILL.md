@@ -61,8 +61,9 @@ Each file lands in one of six buckets, and a directory a migration renames in on
 - **KEEP** — dropped upstream but you modified it, so it stays.
 - **MOVE** — a directory renamed upstream (in 3.0.0, `ideaVerse/` → `vault/`); it moves whole,
   the user's own notes and `local/` scripts inside it untouched.
-- **BLOCKED** — the old and the new directory both hold files, so neither is touched. Merging
-  two trees of notes is the user's call: show both paths, and re-run once they have merged.
+- **BLOCKED** — the old and the new directory both hold files, so `--apply` refuses outright
+  and writes nothing. Merging two trees of notes is the user's call: show both paths, and
+  re-run once they have merged.
 
 ## Step 3 — Interview (install mode only)
 
@@ -85,7 +86,9 @@ Before applying anything to an existing vault, take a baseline so you can prove 
 harm:
 
 ```bash
-python3 "$REPO/aiOS/tools/vault/vault-lint.py" --quiet    # keep this output
+# before 3.0.0 the tools sat in aiOS/tools/ideaVerse/ — use whichever is there
+LINT="$REPO/aiOS/tools/vault/vault-lint.py"; [ -f "$LINT" ] || LINT="$REPO/aiOS/tools/ideaVerse/vault-lint.py"
+python3 "$LINT" --quiet    # keep this output
 ```
 
 Then apply, passing the interview answers on install:
