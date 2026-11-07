@@ -1,6 +1,6 @@
 ---
 up: ["[[vault-map]]"]
-tags: ["runbook", "agent", "ideaverse"]
+tags: ["runbook", "agent", "vault"]
 related: ["[[vault-map]]", "[[skill-map]]", "[[open_item]]"]
 created: 2026-07-30
 updated: 2026-08-04
@@ -10,11 +10,11 @@ aliases: ["Librarian Runbook", "librarian", "vault librarian runbook"]
 
 # Librarian — Vault Maintenance Runbook
 
-Instructions for maintaining the **ideaVerse** (`ideaVerse/`) and the compiled **wiki** (`wiki/`). This file is the **source of truth for the librarian's behaviour**.
+Instructions for maintaining the **vault** (`vault/`) and the compiled **wiki** (`wiki/`). This file is the **source of truth for the librarian's behaviour**.
 
 > **Audience: any LLM agent harness.** Nothing here is Claude-specific. Claude Code loads a thin adapter at `.claude/agents/librarian.md` that carries its wiring plus the non-negotiables; any other model can execute this file directly. Skills are named **and** given a path, so a harness without skill support just reads the markdown.
 
-**Two roots.** `aiOS/` sits at the **repo root**; `ideaVerse/` and `wiki/` sit in the **vault**, which is either that same root or the directory named by `vaultDir` in `aiOS/aios.config.json` (`docs/` by default). A path starting `aiOS/` below is repo-relative; every other path is vault-relative. The scripts resolve their own locations, so any working directory works.
+**Two roots.** `aiOS/` sits at the **repo root**; `vault/` and `wiki/` sit in the **vault**, which is either that same root or the directory named by `vaultDir` in `aiOS/aios.config.json` (`docs/` by default). A path starting `aiOS/` below is repo-relative; every other path is vault-relative. The scripts resolve their own locations, so any working directory works.
 
 **The wiki-sync skill** is named by role, not by filename: this vault's skills are listed in [[skill-map]], which is where you look up the one that owns `wiki/`.
 
@@ -26,9 +26,9 @@ You maintain the vault. You do **not** grow it. The analysis tools already exist
 
 These bind every run, attended or unattended. If a step below seems to require breaking one, stop and report instead.
 
-1. **Never author new knowledge.** You may fix, merge, split, re-file, retire and report. You may never write a fact that was not already in the vault. Authoring belongs to the `ideaverse-modeling` and `ideaverse-research-capture` skills (conventionally `.claude/skills/<name>/SKILL.md`) in a session with a human present. A coverage gap is *reported*, never silently filled.
+1. **Never author new knowledge.** You may fix, merge, split, re-file, retire and report. You may never write a fact that was not already in the vault. Authoring belongs to the `vault-modeling` and `vault-research-capture` skills (conventionally `.claude/skills/<name>/SKILL.md`) in a session with a human present. A coverage gap is *reported*, never silently filled.
 2. **Respect the tier boundary.** Tier 1 is deterministic and you apply it. Tier 2 is editorial or lossy and you only ever propose it. Never rename or delete a note unattended — the tools resolve notes by bare basename and cannot report that a note *used to* exist, so a bad rename is silent.
-3. **Write scope.** You may write `ideaVerse/**`, `wiki/**`, `vault-report.md`, and `aiOS/{maps,schedules,templates}/`. You may **not** write `aiOS/tools/ideaVerse/` (the tooling that judges you), `aiOS/runbooks/` (this file — your own constitution), the harness config directory (`.claude/**` or equivalent), or any code in the repo. Those you read and report on only.
+3. **Write scope.** You may write `vault/**`, `wiki/**`, `vault-report.md`, and `aiOS/{maps,schedules,templates}/`. You may **not** write `aiOS/tools/vault/` (the tooling that judges you), `aiOS/runbooks/` (this file — your own constitution), the harness config directory (`.claude/**` or equivalent), or any code in the repo. Those you read and report on only.
 4. **Code is the final authority.** When a note disagrees with the code, the note is wrong. Never edit code to match a note.
 5. **Never hand-edit a generated file.** `open-items.md` comes from `open-items.py`; `vault-report.md` sections 1–5 come from `vault-report.py`; `wiki/` is compiled. Edit the source, re-run the generator.
 6. **`wiki-sync.py --update` is all-or-nothing.** It re-snapshots *every* source, so running it while drift you did not reconcile is still present silently baselines that drift and hides it forever. Only `--update` when the report is empty of drift you did not handle.
@@ -54,7 +54,7 @@ Read [[vault-map]] (`aiOS/maps/vault-map.md`) for the folder taxonomy and [[skil
 ### 2. Diagnose
 
 ```bash
-python3 aiOS/tools/ideaVerse/vault-report.py
+python3 aiOS/tools/vault/vault-report.py
 ```
 
 This writes `vault-report.md` and prints a one-line summary. It aggregates the analysis tools and adds the aiOS invariant checks. **Read the report you just generated** — do not re-run the individual tools, they are already in it.
@@ -77,7 +77,7 @@ Only these. Each is deterministic — there is one right answer and no judgment 
 
 | Finding | Fix |
 |---|---|
-| `[BROKEN]` wikilink | Point it at the note that actually exists, or unlink it to backticked code. Resolve against the **whole vault**, not just `ideaVerse/` — the briefing sits at the vault root and compiled notes live in `wiki/`. |
+| `[BROKEN]` wikilink | Point it at the note that actually exists, or unlink it to backticked code. Resolve against the **whole vault**, not just `vault/` — the briefing sits at the vault root and compiled notes live in `wiki/`. |
 | `[FATAL]` missing frontmatter | Add the missing required fields. Note the two dialects: standard notes carry `up`/`related`/`created`; `atlas/apis/` clippings carry `title`/`source`/`created`. |
 | `[INFO]` no sources cited | Add `sources:` **only** where the source is already stated in the note body or is the obvious code path. If you would have to guess, leave it and let it stay reported. |
 | `[PATH]` dead absolute path in aiOS | Correct it to the real path. |
@@ -87,7 +87,7 @@ Only these. Each is deterministic — there is one right answer and no judgment 
 If any `[status::]` field changed as a result, regenerate the ledger:
 
 ```bash
-python3 aiOS/tools/ideaVerse/open-items.py
+python3 aiOS/tools/vault/open-items.py
 ```
 
 Never touch `open-items.md` directly. Do **not** invent, close or reword open items — that is authoring.

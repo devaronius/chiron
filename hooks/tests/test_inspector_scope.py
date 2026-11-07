@@ -39,7 +39,9 @@ class TestReviewingWithoutChanging(ScopeCase):
                         'git merge-base origin/development origin/feat/1-x',
                         'git log --oneline -20',
                         'git show abc1234',
-                        'git ls-files modules/trips'):
+                        'git ls-files modules/trips',
+                        'git ls-tree -r --name-only HEAD modules',
+                        'git -C /tmp/claude/scratchpad/pr812 diff --stat'):
             self.assertAllowed(command)
 
     def test_every_way_of_changing_the_repo_is_refused(self):
@@ -53,6 +55,15 @@ class TestReviewingWithoutChanging(ScopeCase):
         reason = self.assertRefused('git checkout feat/45428-carrier')
         self.assertIn('worktree', reason)
         self.assertRefused('git switch development')
+
+    def test_a_config_override_cannot_ride_a_read_only_verb(self):
+        self.assertRefused('git -c core.fsmonitor=/tmp/x status')
+        self.assertRefused('git -c diff.external=/tmp/x diff')
+
+    def test_a_refusal_names_the_verb_not_the_path_given_to_dash_c(self):
+        reason = self.assertRefused('git -C /tmp/claude/scratchpad/pr812 commit -am wip')
+        self.assertIn('`git commit`', reason)
+        self.assertNotIn('`git /tmp', reason)
 
 
 class TestWorktrees(ScopeCase):
@@ -110,24 +121,24 @@ class TestBoardAccess(ScopeCase):
         reproduce them, which is not verification.
         """
         for command in (
-            'python3 aiOS/tools/ideaVerse/vault-lint.py',
-            'python3 aiOS/tools/ideaVerse/vault-lint.py -q --categories',
+            'python3 aiOS/tools/vault/vault-lint.py',
+            'python3 aiOS/tools/vault/vault-lint.py -q --categories',
             'python3 aiOS/tools/wiki/wiki-sync.py',
             'python3 aiOS/tools/wiki/wiki-sync.py --quiet',
-            'python3 aiOS/tools/ideaVerse/research-capture.py check docs/note.md',
-            'python3 aiOS/tools/ideaVerse/research-capture.py exists carrier',
+            'python3 aiOS/tools/vault/research-capture.py check docs/note.md',
+            'python3 aiOS/tools/vault/research-capture.py exists carrier',
         ):
             self.assertAllowed(command)
 
     def test_a_reporter_reached_through_a_scratchpad_worktree_is_still_allowed(self):
         self.assertAllowed(
-            'python3 /tmp/scratchpad/wt/aiOS/tools/ideaVerse/vault-lint.py')
+            'python3 /tmp/scratchpad/wt/aiOS/tools/vault/vault-lint.py')
 
     def test_the_flags_that_make_a_reporter_write_are_refused(self):
         """Read-only has to be a boundary, not a convention the agent observes."""
         for command in (
-            'python3 aiOS/tools/ideaVerse/vault-lint.py --fix',
-            'python3 aiOS/tools/ideaVerse/vault-lint.py -f',
+            'python3 aiOS/tools/vault/vault-lint.py --fix',
+            'python3 aiOS/tools/vault/vault-lint.py -f',
             'python3 aiOS/tools/wiki/wiki-sync.py --update',
             'python3 aiOS/tools/wiki/wiki-sync.py -u',
         ):
@@ -146,8 +157,8 @@ class TestBoardAccess(ScopeCase):
             'python3 aiOS/tools/wiki/wiki-sync.py --upd',
             'python3 aiOS/tools/wiki/wiki-sync.py --updat',
             'python3 aiOS/tools/wiki/wiki-sync.py --update=1',
-            'python3 aiOS/tools/ideaVerse/vault-lint.py --f',
-            'python3 aiOS/tools/ideaVerse/vault-lint.py --fi',
+            'python3 aiOS/tools/vault/vault-lint.py --f',
+            'python3 aiOS/tools/vault/vault-lint.py --fi',
             # the shapes the QA demonstrated defeating a spelling blocklist
             'python3 aiOS/tools/wiki/wiki-sync.py --upd\\atex',
             'python3 aiOS/tools/wiki/wiki-sync.py $(echo --update)',
@@ -160,22 +171,22 @@ class TestBoardAccess(ScopeCase):
             self.assertRefused(command)
 
     def test_a_positional_is_not_mistaken_for_a_flag(self):
-        self.assertAllowed('python3 aiOS/tools/ideaVerse/research-capture.py check docs/a-b.md')
-        self.assertAllowed('python3 aiOS/tools/ideaVerse/research-capture.py exists carrier')
+        self.assertAllowed('python3 aiOS/tools/vault/research-capture.py check docs/a-b.md')
+        self.assertAllowed('python3 aiOS/tools/vault/research-capture.py exists carrier')
 
     def test_an_unrelated_long_flag_is_not_swept_up_by_the_prefix_rule(self):
         for command in ('python3 aiOS/tools/wiki/wiki-sync.py --quiet',
-                        'python3 aiOS/tools/ideaVerse/vault-lint.py --categories',
-                        'python3 aiOS/tools/ideaVerse/vault-lint.py --quiet'):
+                        'python3 aiOS/tools/vault/vault-lint.py --categories',
+                        'python3 aiOS/tools/vault/vault-lint.py --quiet'):
             self.assertAllowed(command)
 
     def test_note_review_is_allowed_and_has_no_write_flag_at_all(self):
-        self.assertAllowed('python3 aiOS/tools/ideaVerse/note-review.py docs/x.md')
-        self.assertAllowed('python3 aiOS/tools/ideaVerse/note-review.py docs/x.md --json')
+        self.assertAllowed('python3 aiOS/tools/vault/note-review.py docs/x.md')
+        self.assertAllowed('python3 aiOS/tools/vault/note-review.py docs/x.md --json')
 
     def test_a_write_flag_bundled_into_a_short_cluster_is_still_refused(self):
         self.assertRefused('python3 aiOS/tools/wiki/wiki-sync.py -qu')
-        self.assertRefused('python3 aiOS/tools/ideaVerse/vault-lint.py -qf')
+        self.assertRefused('python3 aiOS/tools/vault/vault-lint.py -qf')
 
     def test_wiki_sync_update_names_the_reason_it_matters(self):
         reason = self.assertRefused('python3 aiOS/tools/wiki/wiki-sync.py --update')
@@ -186,9 +197,9 @@ class TestBoardAccess(ScopeCase):
         """The reason the rule exists: a named script, not a way in."""
         for command in (
             'python3 -c "import urllib.request"',
-            'python3 aiOS/tools/ideaVerse/vault-lint.py; python3 -c "import os"',
-            'python3 aiOS/tools/ideaVerse/kanban-sync.py',
-            'python3 aiOS/tools/ideaVerse/vault-report.py',
+            'python3 aiOS/tools/vault/vault-lint.py; python3 -c "import os"',
+            'python3 aiOS/tools/vault/kanban-sync.py',
+            'python3 aiOS/tools/vault/vault-report.py',
         ):
             self.assertRefused(command)
 
@@ -201,6 +212,46 @@ class TestBoardAccess(ScopeCase):
 
     def test_heredocs_are_refused_because_they_smuggle_an_interpreter(self):
         self.assertRefused('cat x <<EOF\nrm -rf /\nEOF')
+
+
+class TestReportersAndSuites(ScopeCase):
+    """A reviewer that cannot run the aggregator or one suite recomputes their output by
+    hand with grep and wc, which matches only while the checks stay that small."""
+
+    def test_vault_report_is_allowed_only_when_it_prints(self):
+        # Without `--stdout` the aggregator rewrites vault-report.md.
+        self.assertAllowed('python3 aiOS/tools/vault/vault-report.py --stdout')
+        self.assertAllowed("python3 aiOS/tools/vault/vault-report.py --stdout | sed -n '/## 5/,$p'")
+        self.assertIn('--stdout', self.assertRefused('python3 aiOS/tools/vault/vault-report.py'))
+        self.assertRefused('python3 aiOS/tools/vault/vault-report.py --std')
+        self.assertRefused('python3 aiOS/tools/vault/vault-report.py --stdout --fix')
+
+    def test_the_grader_may_check_a_findings_file(self):
+        self.assertAllowed('python3 aiOS/tools/inspector/grading.py /tmp/scratchpad/findings-812.json --pr 812')
+        self.assertAllowed('python3 aiOS/tools/inspector/grading.py /tmp/scratchpad/findings-session.json')
+        self.assertRefused('python3 aiOS/tools/inspector/grading.py f.json --write')
+
+    def test_one_suite_may_be_discovered_by_its_directory(self):
+        for command in (
+            "python3 -I -m unittest discover -s aiOS/tools/vault/tests -p 'test_*.py'",
+            'python3 -m unittest discover -s .claude/hooks/tests',
+            'python3 -m unittest discover -s .claude/skills/pdf-builder/tests -v',
+            'python3 -m unittest discover -s /tmp/scratchpad/wt/aiOS/tools/inspector/tests 2>&1',
+        ):
+            self.assertAllowed(command)
+
+    def test_the_module_switch_opens_nothing_but_unittest_discovery(self):
+        for command in (
+            'python3 -m http.server',
+            'python3 -m pip install x',
+            'python3 -m unittest aiOS/tools/vault/tests/test_x.py',
+            'python3 -m unittest discover',
+            'python3 -m unittest discover -s modules/trips',
+            'python3 -m unittest discover -s aiOS/tools/vault/tests -t /',
+            'python3 -m unittest discover -s aiOS/tools/vault/tests > /tmp/out',
+            'python3 -X dev -m unittest discover -s .claude/hooks/tests',
+        ):
+            self.assertRefused(command)
 
 
 class TestToolchain(ScopeCase):
@@ -268,7 +319,7 @@ class TestWriteScope(unittest.TestCase):
         self.assertRefused('/Users/x/dev/project/apps/shop/lib/main.dart')
 
     def test_the_vault_and_the_harness_are_not_the_inspectors_either(self):
-        self.assertRefused('docs/ideaVerse/efforts/works/x.md')
+        self.assertRefused('docs/vault/efforts/works/x.md')
         self.assertRefused('.claude/agents/inspector.md')
 
     def test_a_worktree_of_the_repo_is_still_refused(self):

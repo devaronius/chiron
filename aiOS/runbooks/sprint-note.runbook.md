@@ -24,10 +24,10 @@ At the end of a sprint, on request — not scheduled. **Take the sprint's name f
 
 Given a sprint's date range (`<start>` → `<end>`):
 
-1. **Day notes** — `ideaVerse/calendar/days/<date>.md` for every date in range.
+1. **Day notes** — `vault/calendar/days/<date>.md` for every date in range.
 
    > **There is no week-note tier.** `calendar/` holds `days/`, `briefings/`, `meetings/`, `research/` and `sprints/` only: a sprint spans exactly two aligned ISO weeks, so a week note is half a sprint note on the same boundaries. Day notes link their sprint note directly.
-2. **Daily briefings** — `ideaVerse/calendar/briefings/<date>.md` for every date in range. Briefings often carry richer **trend** data (several dated snapshots of the same metric) than the day notes, which only paste a snapshot on the day it was pulled — read every in-range briefing even where it looks redundant with a day note.
+2. **Daily briefings** — `vault/calendar/briefings/<date>.md` for every date in range. Briefings often carry richer **trend** data (several dated snapshots of the same metric) than the day notes, which only paste a snapshot on the day it was pulled — read every in-range briefing even where it looks redundant with a day note.
 3. **The repo, as evidence the notes cannot contradict.** The dailies are written at 09:00 and can only see what already happened; the repo records the rest. Check all of it:
    - `git log --all --since=<start> --until=<end+1>` including **weekend dates** — confirm whether the sprint really ends on its last working day.
    - the changelog — a dated release section is a **release that happened**, and it is frequently absent from every day note.
@@ -69,15 +69,15 @@ Do not present this as a questionnaire — ask what you cannot verify, and verif
 
 Merging implies the source week/day/briefing notes get **deleted** once folded in — but this has real blast radius, so **confirm with the user before deleting** if you haven't already on this note:
 
-1. Search the whole vault for `[[wikilinks]]` and path references to each source file being deleted — not just inside `ideaVerse/`, also `wiki/`.
-2. **The `wiki/` fallout is the big one.** Compiled wiki notes cite raw sources in their `**Sources:**` line, and `wiki/wiki.catalog.jsonl` mirrors this in each row's `sources[]` array (matched by bare filename stem, e.g. `"2026-07-02"` — ambiguous between a day note and a briefing sharing that date, so re-check what's actually still being cited after your edit). For every wiki note/catalog row that cites a file you're deleting: replace that citation with a link to the new sprint note (`[Q... sprint N.md](../../ideaVerse/calendar/sprints/Q...%20sprint%20N.md)`), deduping if the sprint note is already cited there.
-3. Notes outside `wiki/` (e.g. `ideaVerse/efforts/projects/*.md`, other briefings) may also link the deleted dates. These are often historical/point-in-time citations (a briefing quoting "carried from the 2026-06-30 day note"). Write example dates as plain text, never as live wikilinks — a wikilinked example in this runbook breaks the moment a sprint merge deletes that date, which is exactly what happened to the one that used to be here. Treat these as lower-priority than the wiki, and call out what's left un-fixed rather than silently rewriting a large number of unrelated files.
+1. Search the whole vault for `[[wikilinks]]` and path references to each source file being deleted — not just inside `vault/`, also `wiki/`.
+2. **The `wiki/` fallout is the big one.** Compiled wiki notes cite raw sources in their `**Sources:**` line, and `wiki/wiki.catalog.jsonl` mirrors this in each row's `sources[]` array (matched by bare filename stem, e.g. `"2026-07-02"` — ambiguous between a day note and a briefing sharing that date, so re-check what's actually still being cited after your edit). For every wiki note/catalog row that cites a file you're deleting: replace that citation with a link to the new sprint note (`[Q... sprint N.md](../../vault/calendar/sprints/Q...%20sprint%20N.md)`), deduping if the sprint note is already cited there.
+3. Notes outside `wiki/` (e.g. `vault/efforts/projects/*.md`, other briefings) may also link the deleted dates. These are often historical/point-in-time citations (a briefing quoting "carried from the 2026-06-30 day note"). Write example dates as plain text, never as live wikilinks — a wikilinked example in this runbook breaks the moment a sprint merge deletes that date, which is exactly what happened to the one that used to be here. Treat these as lower-priority than the wiki, and call out what's left un-fixed rather than silently rewriting a large number of unrelated files.
 4. **Re-home the open items you are about to delete — the step that is easiest to miss, because nothing fails when you skip it.** A day note may be the *only* note carrying a given `[status:: open|blocked]` line, and `open-items.py` builds the live ledger by scanning those lines. Delete the note and the item silently leaves `open-items.md` — it does **not** survive in the sprint note, because a sprint note's "Open, carried into …" list is deliberately plain `- [ ]` prose with no `[status::]` metadata, which the parser ignores by design.
 
    ```bash
    # before deleting — capture the baseline and the items at risk
    grep -c '^| ' open-items.md
-   grep -h '\[status:: *\(open\|blocked\)' ideaVerse/calendar/{days,briefings}/<dates>.md
+   grep -h '\[status:: *\(open\|blocked\)' vault/calendar/{days,briefings}/<dates>.md
    ```
 
    For each such item, find whether a **surviving** note already owns it, and re-home the ones that don't:
@@ -89,11 +89,11 @@ Merging implies the source week/day/briefing notes get **deleted** once folded i
 
 5. Delete the source files. Some harnesses gate file deletion behind a permission the session has not been granted yet — ask for it rather than working around it.
 6. Run `python3 aiOS/tools/wiki/wiki-sync.py` to see the drift, reconcile any real gaps (step 2), then `python3 aiOS/tools/wiki/wiki-sync.py --update` to re-snapshot the baseline. Run the plain check again afterward and confirm it reports 0 new/changed/deleted (pre-existing unrelated drift, e.g. never-compiled briefings, is fine to leave — call it out, don't silently absorb it into a "clean" baseline).
-7. Re-run `python3 aiOS/tools/ideaVerse/open-items.py --today <date>` so the ledger matches the owning notes.
+7. Re-run `python3 aiOS/tools/vault/open-items.py --today <date>` so the ledger matches the owning notes.
 
 ## Output
 
-Write to `ideaVerse/calendar/sprints/<sprint name>.md`, filename matching the note title. Use the frontmatter from [[sprint-note.template]]: `coverage` as `<start>..<end>`, `created`/`updated` as the sprint's start and end dates, and every external source (chat threads, work items, design files, git commits, console URLs) consolidated in `sources` — internal ideaVerse notes that survive (projects, concepts, other sprint notes) go in `related` as `[[wikilinks]]` instead.
+Write to `vault/calendar/sprints/<sprint name>.md`, filename matching the note title. Use the frontmatter from [[sprint-note.template]]: `coverage` as `<start>..<end>`, `created`/`updated` as the sprint's start and end dates, and every external source (chat threads, work items, design files, git commits, console URLs) consolidated in `sources` — internal vault notes that survive (projects, concepts, other sprint notes) go in `related` as `[[wikilinks]]` instead.
 
 ## Rules
 

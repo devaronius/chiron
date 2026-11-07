@@ -51,17 +51,17 @@ new_repo () {
 head1 "1. install — empty repo"
 T=$(new_repo install)
 inst --target "$T" --apply --project-name "Acme" --project-domain "Payments." --roles "Dev,QA" >/dev/null
-[ -f "$T/aiOS/tools/ideaVerse/vault_lib.py" ]  && ok "tools installed at repo root" || bad "tools installed at repo root"
+[ -f "$T/aiOS/tools/vault/vault_lib.py" ]  && ok "tools installed at repo root" || bad "tools installed at repo root"
 [ -f "$T/aiOS/.chiron-install.json" ]          && ok "manifest written"          || bad "manifest written"
 [ -f "$T/docs/project-brief.md" ]              && ok "briefing seeded"           || bad "briefing seeded"
-[ -f "$T/.claude/skills/ideaverse-wiki-sync/SKILL.md" ] && ok "skills installed" || bad "skills installed"
+[ -f "$T/.claude/skills/vault-wiki-sync/SKILL.md" ] && ok "skills installed" || bad "skills installed"
 [ -f "$T/.claude/agents/librarian.md" ]        && ok "agent adapter installed"   || bad "agent adapter installed"
 [ -f "$T/.claude/hooks/open-items-lane.py" ]   && ok "session hook installed"    || bad "session hook installed"
-[ -d "$T/docs/ideaVerse/efforts/works" ]       && ok "ACE skeleton scaffolded"   || bad "ACE skeleton scaffolded"
+[ -d "$T/docs/vault/efforts/works" ]       && ok "ACE skeleton scaffolded"   || bad "ACE skeleton scaffolded"
 if [ -e "$T/docs/aiOS" ]
   then bad "aiOS is not installed inside the vault"
   else ok "aiOS is not installed inside the vault"; fi
-if [ -e "$T/.claude/skills/bootstrap-ideaverse" ]
+if [ -e "$T/.claude/skills/bootstrap-vault" ]
   then bad "installer must not be copied into the target"
   else ok "installer not copied into target"; fi
 if grep -q '{{' "$T/docs/project-brief.md"
@@ -75,16 +75,16 @@ if python3 -c "import json;json.load(open('$T/aiOS/aios.config.json'))" 2>/dev/n
 ( cd "$T" && python3 aiOS/tools/wiki/wiki-sync.py --update >/dev/null 2>&1 )
 out=$( cd "$T" && python3 aiOS/tools/wiki/wiki-sync.py 2>&1 )
 grep -q "Wiki is in sync" <<<"$out" && ok "wiki baseline in sync" || bad "wiki baseline in sync"
-out=$( cd "$T" && python3 aiOS/tools/ideaVerse/vault-lint.py 2>&1 )
+out=$( cd "$T" && python3 aiOS/tools/vault/vault-lint.py 2>&1 )
 if grep -q "FATAL" <<<"$out"; then bad "fresh install lints without FATAL"
   else ok "fresh install lints without FATAL"; fi
-if ( cd "$T" && python3 aiOS/tools/ideaVerse/vault-report.py >/dev/null 2>&1 )
+if ( cd "$T" && python3 aiOS/tools/vault/vault-report.py >/dev/null 2>&1 )
   then ok "vault-report runs" ; else bad "vault-report runs"; fi
-out=$( cd "$T" && python3 aiOS/tools/ideaVerse/coverage-gap.py 2>&1 )
+out=$( cd "$T" && python3 aiOS/tools/vault/coverage-gap.py 2>&1 )
 if grep -q "Coverage Analysis" <<<"$out"
   then ok "coverage-gap runs with no code config"
   else bad "coverage-gap runs with no code config"; fi
-out=$( cd "$T" && python3 aiOS/tools/ideaVerse/open-items.py --lane 2>&1 ); rc=$?
+out=$( cd "$T" && python3 aiOS/tools/vault/open-items.py --lane 2>&1 ); rc=$?
 check "open-items --lane exits 0 on an empty vault" "$rc" "0"
 out=$( cd "$T" && python3 .claude/hooks/open-items-lane.py 2>&1 ); rc=$?
 check "session hook exits 0 with nothing ripe" "$rc" "0"
@@ -100,11 +100,13 @@ done
                                               || bad "researcher scope hook installed"
 [ -f "$T/.claude/hooks/inspector-scope.py" ]  && ok "inspector scope hook installed" \
                                               || bad "inspector scope hook installed"
+[ -f "$T/aiOS/runbooks/inspector/severity-rules.toml" ] && ok "severity rules seeded" \
+                                                        || bad "severity rules seeded"
 # The payload ships its own suites so a consumer can verify their copy after an upgrade.
 # Run them in the INSTALLED tree, not chiron's — that is the copy that has to work, and a
 # suite that only passes upstream is the failure this assertion exists to catch.
 out=$( cd "$T" && bash aiOS/tools/run-tests.sh 2>&1 )
-grep -q "all 3 suites pass" <<<"$out" && ok "every shipped suite passes where installed" \
+grep -q "all 4 suites pass" <<<"$out" && ok "every shipped suite passes where installed" \
                                       || { bad "every shipped suite passes where installed"; printf '%s\n' "$out" | tail -12; }
 
 # ── 2. idempotence ────────────────────────────────────────────
@@ -122,7 +124,7 @@ FAKE="$WORK/chiron-$NEXT"
 mkdir -p "$FAKE"
 ( cd "$CHIRON" && tar cf - --exclude=./.git --exclude=./.git/* . ) | ( cd "$FAKE" && tar xf - )
 printf '# added in %s\n' "$NEXT" > "$FAKE/aiOS/templates/new-thing.template.md"
-printf '\n# changed in %s\n' "$NEXT" >> "$FAKE/aiOS/tools/ideaVerse/note-review.py"
+printf '\n# changed in %s\n' "$NEXT" >> "$FAKE/aiOS/tools/vault/note-review.py"
 mv "$FAKE/aiOS/templates/schedule.template.md" "$FAKE/aiOS/templates/routine.template.md"
 rm -f "$FAKE/aiOS/templates/api-note.template.md"
 cat > "$FAKE/migrations.json" <<JSON
@@ -140,9 +142,9 @@ UP () { python3 "$FAKE/tools/chiron-install.py" "$@"; }
 head1 "3. adopt — vault with no manifest, classified by hash history"
 T2=$(new_repo adopt)
 inst --target "$T2" --apply --project-name "Legacy" >/dev/null
-printf '\n# MY OWN TWEAK\n' >> "$T2/aiOS/tools/ideaVerse/research-capture.py"
+printf '\n# MY OWN TWEAK\n' >> "$T2/aiOS/tools/vault/research-capture.py"
 printf '\nMy own paragraph.\n' >> "$T2/docs/project-brief.md"
-mine_rc=$(shasum < "$T2/aiOS/tools/ideaVerse/research-capture.py")
+mine_rc=$(shasum < "$T2/aiOS/tools/vault/research-capture.py")
 rm -f "$T2/aiOS/.chiron-install.json"        # now indistinguishable from a pre-chiron vault
 
 out=$(UP --target "$T2" --plan 2>&1)
@@ -156,7 +158,7 @@ grep -q "matches no version chiron ever shipped" <<<"$out" \
   && ok "conflict verdict says why" || bad "conflict verdict says why"
 
 UP --target "$T2" --apply >/dev/null 2>&1
-check "conflicted file untouched by apply" "$(shasum < "$T2/aiOS/tools/ideaVerse/research-capture.py")" "$mine_rc"
+check "conflicted file untouched by apply" "$(shasum < "$T2/aiOS/tools/vault/research-capture.py")" "$mine_rc"
 grep -q "My own paragraph" "$T2/docs/project-brief.md" && ok "seeded edit preserved" \
                                                        || bad "seeded edit preserved"
 [ -f "$T2/aiOS/.chiron-install.json" ] && ok "adopt records a manifest" || bad "adopt records a manifest"
@@ -165,8 +167,8 @@ grep -q "My own paragraph" "$T2/docs/project-brief.md" && ok "seeded edit preser
 head1 "4. upgrade — migrations then three-way diff"
 T3=$(new_repo upgrade)
 inst --target "$T3" --apply --project-name "Up" >/dev/null
-printf '\n# MY LOCAL EDIT\n' >> "$T3/aiOS/tools/ideaVerse/vault-lint.py"
-mine=$(shasum < "$T3/aiOS/tools/ideaVerse/vault-lint.py")
+printf '\n# MY LOCAL EDIT\n' >> "$T3/aiOS/tools/vault/vault-lint.py"
+mine=$(shasum < "$T3/aiOS/tools/vault/vault-lint.py")
 
 out=$(UP --target "$T3" --plan 2>&1)
 grep -q "mode: upgrade" <<<"$out" && ok "detected upgrade mode" || bad "detected upgrade mode"
@@ -178,7 +180,7 @@ grep -q "$NEXT: 1 rename(s), 1 retire(s)" <<<"$out" && ok "migrations listed in 
 
 UP --target "$T3" --apply >/dev/null 2>&1
 [ -f "$T3/aiOS/templates/new-thing.template.md" ] && ok "added file written" || bad "added file written"
-grep -q "changed in $NEXT" "$T3/aiOS/tools/ideaVerse/note-review.py" \
+grep -q "changed in $NEXT" "$T3/aiOS/tools/vault/note-review.py" \
   && ok "changed file updated" || bad "changed file updated"
 [ -f "$T3/aiOS/templates/routine.template.md" ] && ok "rename landed at new path" \
                                                       || bad "rename landed at new path"
@@ -192,8 +194,8 @@ check "manifest now at $NEXT" \
 
 # ── 5. conflict ───────────────────────────────────────────────
 head1 "5. conflict — a locally edited managed file is sacred"
-check "edited file byte-identical after apply" "$(shasum < "$T3/aiOS/tools/ideaVerse/vault-lint.py")" "$mine"
-grep -q "MY LOCAL EDIT" "$T3/aiOS/tools/ideaVerse/vault-lint.py" && ok "local edit survived the upgrade" \
+check "edited file byte-identical after apply" "$(shasum < "$T3/aiOS/tools/vault/vault-lint.py")" "$mine"
+grep -q "MY LOCAL EDIT" "$T3/aiOS/tools/vault/vault-lint.py" && ok "local edit survived the upgrade" \
                                                               || bad "local edit survived the upgrade"
 out=$(UP --target "$T3" --plan 2>&1); rc=$?
 check "conflict keeps exit code non-zero" "$rc" "1"
@@ -219,10 +221,10 @@ UP --target "$T3" --apply >/dev/null 2>&1
 head1 "6. --map — a consumer's own name is followed, not overwritten"
 T4=$(new_repo remap)
 inst --target "$T4" --apply --project-name "Renamed" \
-     --map skills/knowledge/ideaverse-wiki-sync=.claude/skills/cca-wiki-sync >/dev/null
+     --map skills/knowledge/vault-wiki-sync=.claude/skills/cca-wiki-sync >/dev/null
 [ -f "$T4/.claude/skills/cca-wiki-sync/SKILL.md" ] && ok "skill installed under the local name" \
                                                     || bad "skill installed under the local name"
-if [ -e "$T4/.claude/skills/ideaverse-wiki-sync" ]
+if [ -e "$T4/.claude/skills/vault-wiki-sync" ]
   then bad "upstream name not also created"; else ok "upstream name not also created"; fi
 out=$(inst --target "$T4" --plan 2>&1)
 grep -q "Nothing to do" <<<"$out" && ok "rename followed without repeating --map" \
@@ -234,8 +236,8 @@ printf '\n<!-- local tweak -->\n' >> "$T4/.claude/skills/cca-wiki-sync/SKILL.md"
 inst --target "$T4" --apply >/dev/null 2>&1
 out=$(inst --target "$T4" --plan 2>&1)
 check "conflicted rename → CONFLICT, not ADD" "$(sect "$out" CONFLICT 'cca-wiki-sync')" "1"
-check "no duplicate under the upstream name"  "$(sect "$out" ADD '.claude/skills/ideaverse-wiki-sync')" "0"
-if [ -e "$T4/.claude/skills/ideaverse-wiki-sync" ]
+check "no duplicate under the upstream name"  "$(sect "$out" ADD '.claude/skills/vault-wiki-sync')" "0"
+if [ -e "$T4/.claude/skills/vault-wiki-sync" ]
   then bad "upstream name still not created"; else ok "upstream name still not created"; fi
 
 # ── 7. the 2.0.0 move ────────────────────────────────────────
@@ -248,12 +250,12 @@ T5=$(new_repo migrate)
 mkdir -p "$T5/docs/aiOS/scripts" "$T5/docs/aiOS/agents" "$T5/docs/aiOS/maps" \
          "$T5/docs/aiOS/templates" "$T5/.claude/skills/wiki-sync" "$T5/docs/ideaVerse" \
          "$T5/docs/wiki"
-cp "$CHIRON/aiOS/tools/ideaVerse/vault_lib.py"       "$T5/docs/aiOS/scripts/vault_lib.py"
-cp "$CHIRON/aiOS/tools/ideaVerse/note-review.py"     "$T5/docs/aiOS/scripts/note-review.py"
+cp "$CHIRON/aiOS/tools/vault/vault_lib.py"       "$T5/docs/aiOS/scripts/vault_lib.py"
+cp "$CHIRON/aiOS/tools/vault/note-review.py"     "$T5/docs/aiOS/scripts/note-review.py"
 cp "$CHIRON/aiOS/tools/wiki/wiki-sync.py"            "$T5/docs/aiOS/scripts/wiki-sync.py"
 cp "$CHIRON/aiOS/runbooks/librarian.runbook.md"      "$T5/docs/aiOS/agents/librarian.md"
 cp "$CHIRON/aiOS/runbooks/day-note.runbook.md"       "$T5/docs/aiOS/templates/day-note.runbook.md"
-cp "$CHIRON/skills/knowledge/ideaverse-wiki-sync/SKILL.md" "$T5/.claude/skills/wiki-sync/SKILL.md"
+cp "$CHIRON/skills/knowledge/vault-wiki-sync/SKILL.md" "$T5/.claude/skills/wiki-sync/SKILL.md"
 printf '\n# MY 1.x EDIT\n' >> "$T5/docs/aiOS/scripts/note-review.py"
 mine_1x=$(shasum < "$T5/docs/aiOS/scripts/note-review.py")
 cat > "$T5/docs/aiOS/.chiron-install.json" <<JSON
@@ -269,7 +271,7 @@ grep -q "2.0.0: 25 rename(s)" <<<"$out" && ok "the move is listed as migrations"
                                         || bad "the move is listed as migrations"
 
 inst --target "$T5" --apply >/dev/null 2>&1
-[ -f "$T5/aiOS/tools/ideaVerse/vault_lib.py" ] && ok "script moved to the repo root" \
+[ -f "$T5/aiOS/tools/vault/vault_lib.py" ] && ok "script moved to the repo root" \
                                                || bad "script moved to the repo root"
 [ -f "$T5/aiOS/tools/wiki/wiki-sync.py" ]      && ok "wiki-sync moved to its own group" \
                                                || bad "wiki-sync moved to its own group"
@@ -280,7 +282,7 @@ inst --target "$T5" --apply >/dev/null 2>&1
 if [ -e "$T5/docs/aiOS/scripts" ] || [ -e "$T5/docs/aiOS/agents" ]
   then bad "nothing left behind at the 1.x paths"
   else ok "nothing left behind at the 1.x paths"; fi
-[ -f "$T5/.claude/skills/ideaverse-wiki-sync/SKILL.md" ] && ok "skill renamed, not re-added" \
+[ -f "$T5/.claude/skills/vault-wiki-sync/SKILL.md" ] && ok "skill renamed, not re-added" \
                                                          || bad "skill renamed, not re-added"
 if [ -e "$T5/.claude/skills/wiki-sync/SKILL.md" ]
   then bad "old skill name removed"; else ok "old skill name removed"; fi
@@ -289,9 +291,88 @@ if [ -e "$T5/.claude/skills/wiki-sync/SKILL.md" ]
 if [ -e "$T5/docs/aiOS/.chiron-install.json" ]
   then bad "legacy manifest deleted"; else ok "legacy manifest deleted"; fi
 check "a file edited before the move survives it" \
-  "$(shasum < "$T5/aiOS/tools/ideaVerse/note-review.py")" "$mine_1x"
+  "$(shasum < "$T5/aiOS/tools/vault/note-review.py")" "$mine_1x"
 out=$(inst --target "$T5" --plan 2>&1)
 check "no re-add of a moved file"  "$(sect "$out" ADD 'scripts/')" "0"
+
+# ── 8. the 3.0.0 move ───────────────────────────────────────
+head1 "8. 3.0.0 — a 2.0.0 tree's directories move, own files and all"
+# Built from today's install, then put back into the 2.0.0 shape by hand: what is under
+# test is the move machinery, so contents stay current and the old paths are what differ.
+T6=$(new_repo rename)
+inst --target "$T6" --apply --project-name "Renamed" \
+     --map skills/knowledge/vault-wiki-sync=.claude/skills/cca-wiki-sync >/dev/null
+mv "$T6/docs/vault" "$T6/docs/ideaVerse"
+mv "$T6/aiOS/tools/vault" "$T6/aiOS/tools/ideaVerse"
+for d in "$T6"/.claude/skills/vault-*; do
+  n=$(basename "$d"); [ "$n" = vault-health ] && old=ideaverse-vault-health || old=ideaverse-${n#vault-}
+  mv "$d" "$T6/.claude/skills/$old"
+done
+printf -- '---\nup: []\n---\n\nMy own note.\n' > "$T6/docs/ideaVerse/atlas/concepts/mine.md"
+printf 'print("mine")\n' > "$T6/aiOS/tools/ideaVerse/local/mine.py"
+printf '\n# MY 2.0.0 EDIT\n' >> "$T6/aiOS/tools/ideaVerse/vault-lint.py"
+mine_lint=$(shasum < "$T6/aiOS/tools/ideaVerse/vault-lint.py")
+python3 - "$T6/aiOS/.chiron-install.json" <<'PY'
+import json, sys
+path = sys.argv[1]
+m = json.load(open(path))
+def old(k):
+    for new, was in (("aiOS/tools/vault/", "aiOS/tools/ideaVerse/"),
+                     (".claude/skills/vault-health/", ".claude/skills/ideaverse-vault-health/"),
+                     (".claude/skills/vault-", ".claude/skills/ideaverse-"),
+                     ("docs/vault/", "docs/ideaVerse/")):
+        if k.startswith(new):
+            return was + k[len(new):]
+    return k
+m["chironVersion"] = "2.0.0"
+m["files"] = {old(k): v for k, v in m["files"].items()}
+json.dump(m, open(path, "w"), indent=2)
+PY
+
+out=$(inst --target "$T6" --plan 2>&1)
+grep -q "mode: upgrade" <<<"$out" && ok "2.0.0 manifest read as an upgrade" \
+                                  || bad "2.0.0 manifest read as an upgrade"
+grep -q "3.0.0: 9 directory move(s)" <<<"$out" && ok "the moves are listed as migrations" \
+                                               || bad "the moves are listed as migrations"
+check "notes folder → MOVE"            "$(sect "$out" MOVE 'docs/vault')"              "1"
+check "edited tool → CONFLICT"         "$(sect "$out" CONFLICT 'aiOS/tools/vault/vault-lint.py')" "1"
+check "no ADD under a moved directory" "$(sect "$out" ADD '/vault/')"                  "0"
+check "mapped skill not re-added"      "$(sect "$out" ADD 'vault-wiki-sync')"          "0"
+
+inst --target "$T6" --apply >/dev/null 2>&1
+[ -f "$T6/docs/vault/atlas/concepts/mine.md" ] && ok "own note moved with its folder" \
+                                              || bad "own note moved with its folder"
+[ -f "$T6/aiOS/tools/vault/local/mine.py" ]    && ok "local/ script moved with it" \
+                                              || bad "local/ script moved with it"
+if [ -e "$T6/docs/ideaVerse" ] || [ -e "$T6/aiOS/tools/ideaVerse" ]
+  then bad "nothing left at the old directories"; else ok "nothing left at the old directories"; fi
+check "an edited tool survives the move byte for byte" \
+  "$(shasum < "$T6/aiOS/tools/vault/vault-lint.py")" "$mine_lint"
+[ -f "$T6/.claude/skills/vault-health/SKILL.md" ] && ok "ideaverse-vault-health → vault-health" \
+                                                  || bad "ideaverse-vault-health → vault-health"
+if ls -d "$T6"/.claude/skills/ideaverse-* >/dev/null 2>&1
+  then bad "no ideaverse-* skill left"; else ok "no ideaverse-* skill left"; fi
+[ -f "$T6/.claude/skills/cca-wiki-sync/SKILL.md" ] && ok "--map name kept across the move" \
+                                                   || bad "--map name kept across the move"
+if [ -e "$T6/.claude/skills/vault-wiki-sync" ]
+  then bad "mapped skill not duplicated"; else ok "mapped skill not duplicated"; fi
+out=$(inst --target "$T6" --plan 2>&1)
+check "second plan moves nothing"   "$(sect "$out" MOVE '/')" "0"
+check "second plan adds nothing"    "$(sect "$out" ADD '/')"  "0"
+
+# ── 9. a blocked move ────────────────────────────────────────
+head1 "9. blocked — both folders hold notes, so neither is touched"
+T7=$(new_repo blocked)
+inst --target "$T7" --apply --project-name "Both" >/dev/null
+mkdir -p "$T7/docs/ideaVerse/atlas"
+printf 'old\n' > "$T7/docs/ideaVerse/atlas/old.md"
+before=$( cd "$T7" && find docs -type f -exec shasum {} \; | sort | shasum )
+out=$(inst --target "$T7" --plan 2>&1); rc=$?
+check "both folders → BLOCKED"      "$(sect "$out" BLOCKED 'docs/vault')" "1"
+check "a blocked move exits 1"      "$rc" "1"
+inst --target "$T7" --apply >/dev/null 2>&1
+check "apply leaves both folders as they were" \
+  "$( cd "$T7" && find docs -type f -exec shasum {} \; | sort | shasum )" "$before"
 
 printf '\n\033[1mResult:\033[0m %d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ] || exit 1

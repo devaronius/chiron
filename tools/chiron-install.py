@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-chiron-install — install, adopt, upgrade or verify a chiron ideaVerse in a target repo.
+chiron-install — install, adopt, upgrade or verify a chiron vault in a target repo.
 
 This is chiron's own machinery, not payload: it lives in `tools/` and is never copied into
-a consumer vault. The `bootstrap-ideaverse` skill runs it from a chiron checkout.
+a consumer vault. The `bootstrap-vault` skill runs it from a chiron checkout.
 
 Four modes, detected from the target rather than passed in:
 
@@ -32,9 +32,15 @@ Two file classes, distinguished structurally by which payload directory they com
                                      overwritten again, only reported when upstream moves
 
 Two roots, not one. `aiOS/` installs at the **repo root** — it is the operating layer, and it
-runs over the repo as much as over the notes. The vault (`ideaVerse/`, `wiki/`, the briefing,
+runs over the repo as much as over the notes. The vault (`vault/`, `wiki/`, the briefing,
 the ledgers) installs under the vault prefix, which is the repo root itself or a subdirectory
 such as `docs/`. The manifest lives with `aiOS/`, because that is the part that never moves.
+
+Migrations carry three kinds of step. `renames` move one payload file, `retires` delete one
+that is pristine, and `moves` rename a whole directory that may hold the consumer's own files
+— the notes folder, `aiOS/tools/<group>/local/`. A move is judged by what is on disk, not by
+version: it runs when the old directory exists and the new one holds no file, and when both
+hold files it is BLOCKED and nothing in either is touched.
 
 Usage:
   chiron-install.py --target DIR --plan
@@ -69,6 +75,7 @@ VERSION_PATH = CHIRON_ROOT / "VERSION"
 
 MANIFEST_REL = "aiOS/.chiron-install.json"      # relative to the repo root
 LEGACY_MANIFEST_DIRS = ("docs/",)               # where <2.0.0 kept it, under the vault
+LEGACY_SOURCE_DIRS = ("ideaVerse",)             # the notes folder's name before 3.0.0
 SKILLS_DEST = ".claude/skills"
 AGENTS_DEST = ".claude/agents"
 HOOKS_DEST = ".claude/hooks"
@@ -76,7 +83,7 @@ HOOKS_DEST = ".claude/hooks"
 # The installer itself is user-level (`~/.claude/skills/`), one copy for every repo — a
 # per-repo copy is what let the old skill drift from its own payload. Matched on the skill's
 # own directory name, not its category path.
-SKILLS_NOT_INSTALLED = {"bootstrap-ideaverse"}
+SKILLS_NOT_INSTALLED = {"bootstrap-vault"}
 
 # Never treated as payload: generated at runtime beside the file that generates it.
 PAYLOAD_EXCLUDE = {".chiron-install.json", ".DS_Store", ".mermaid.min.js"}
@@ -85,15 +92,15 @@ PAYLOAD_EXCLUDE_DIRS = {"__pycache__", "local"}
 # The ACE skeleton. Created empty so a new note has an obvious home rather than requiring
 # the author to guess and invent a folder. Git will not track an empty directory, which is
 # fine — the first note in one recreates it.
-AIOS_SCAFFOLD_DIRS = ["aiOS/schedules", "aiOS/tools/ideaVerse/local"]
+AIOS_SCAFFOLD_DIRS = ["aiOS/schedules", "aiOS/tools/vault/local"]
 
 SCAFFOLD_DIRS = [
-    "ideaVerse/atlas/apis", "ideaVerse/atlas/concepts", "ideaVerse/atlas/documents",
-    "ideaVerse/atlas/personas",
-    "ideaVerse/calendar/days", "ideaVerse/calendar/briefings", "ideaVerse/calendar/meetings",
-    "ideaVerse/calendar/research", "ideaVerse/calendar/releases", "ideaVerse/calendar/sprints",
-    "ideaVerse/efforts/projects", "ideaVerse/efforts/works", "ideaVerse/efforts/referrals",
-    "ideaVerse/+",
+    "vault/atlas/apis", "vault/atlas/concepts", "vault/atlas/documents",
+    "vault/atlas/personas",
+    "vault/calendar/days", "vault/calendar/briefings", "vault/calendar/meetings",
+    "vault/calendar/research", "vault/calendar/releases", "vault/calendar/sprints",
+    "vault/efforts/projects", "vault/efforts/works", "vault/efforts/referrals",
+    "vault/+",
     "wiki/topics", "wiki/concepts", "wiki/entities", "wiki/projects",
 ]
 
@@ -197,7 +204,7 @@ def payload(vault_prefix: str, seed_dests: dict) -> list[Item]:
         rel = p.relative_to(CHIRON_ROOT).as_posix()
         inner = p.relative_to(CHIRON_ROOT / "seeds").as_posix()
         dest = seed_dests.get(inner)
-        if dest is None:                                    # seeds/ideaVerse/**, seeds/wiki/**
+        if dest is None:                                    # seeds/vault/**, seeds/wiki/**
             dest = f"{vault_prefix}{inner}"
         items.append(Item(rel, dest, "seeded"))
 
@@ -213,6 +220,10 @@ def seed_destinations(vault_prefix: str, briefing: str) -> dict:
         "claude-agent-librarian.md": f"{AGENTS_DEST}/librarian.md",
         "claude-agent-researcher.md": f"{AGENTS_DEST}/researcher.md",
         "claude-agent-inspector.md": f"{AGENTS_DEST}/inspector.md",
+        # The inspector's severity floors are a human's decisions about what blocks a
+        # merge here, so they are seeded: an upgrade reports a new upstream rule and
+        # never overwrites a floor the team has moved.
+        "inspector-severity-rules.toml": "aiOS/runbooks/inspector/severity-rules.toml",
         # The maps land in aiOS/ but are seeded, not managed: they carry the project's name
         # and, once installed, the consumer's own routing rules and precedence notes. An
         # upgrade reports that upstream moved and leaves the merge to a human or an agent.
@@ -259,24 +270,35 @@ def build_plan(target: Path, vault_prefix: str, tokens: dict, briefing: str,
                 migrations.append(m)
         migrations.sort(key=lambda m: semver(m["version"]))
 
-    actions: list[dict] = []
     # A migration rename moves a file that is still at its old path while this plan is being
     # built — apply_plan does the moving afterwards. Judging the new path alone would report
     # every renamed file as missing, and the ADD that follows overwrites the file the rename
     # just carried over, local edits and all. So the plan reads the old path's content and
     # decides there; the physical move still happens first at apply time.
-    moving = {new: old for old, new in plan_renames(vault_prefix, migrations)}
+    #
+    # Renames chain across releases (a 1.x file moves twice), and a directory move carries
+    # every file under it, so the old path is found by walking back through both.
+    moves = plan_moves(target, vault_prefix, plan_renames(vault_prefix, migrations))
+    incoming_of = origin_resolver(plan_renames(vault_prefix, migrations),
+                                  [(m["old"], m["new"]) for m in moves if not m["blocked"]])
+    # The manifest is keyed by destination, so a record written under an old path is
+    # found the same way — unconditionally, since a file a consumer renamed with --map is
+    # not at the old path and its move never runs.
+    key_of = origin_resolver(plan_renames(vault_prefix, migrations), migration_moves(vault_prefix))
+    actions: list[dict] = [dict(action="blocked" if m["blocked"] else "move", dest=m["new"],
+                                src=m["old"], cls="", sha="", note=m["note"]) for m in moves]
     seed_dests = seed_destinations(vault_prefix, briefing)
     for item in payload(vault_prefix, seed_dests):
         dest_rel = remap(item, mapping)
         # A consumer rename recorded at install time follows the file forever.
-        recorded = files.get(dest_rel) or files.get(item.dest) or {}
+        recorded = (files.get(dest_rel) or files.get(item.dest)
+                    or files.get(key_of(item.dest)) or {})
         if recorded.get("installedAs"):
             dest_rel = recorded["installedAs"]
 
         dest = target / dest_rel
-        if not dest.exists() and dest_rel in moving:
-            incoming = target / moving[dest_rel]
+        if not dest.exists():
+            incoming = target / incoming_of(dest_rel)
             if incoming.is_file():
                 dest = incoming
         want = content_for(item, tokens)
@@ -343,6 +365,59 @@ def plan_retires(target: Path, vault_prefix: str, migrations: list[dict],
     return out
 
 
+def migration_moves(vault_prefix: str) -> list[tuple[str, str]]:
+    """Every directory move chiron has ever shipped, as (old, new) target paths."""
+    return [(old.replace("{vault}/", vault_prefix), new.replace("{vault}/", vault_prefix))
+            for m in read_json(MIGRATIONS_PATH, []) for old, new in m.get("moves", [])]
+
+
+def plan_moves(target: Path, vault_prefix: str,
+               renames: list[tuple[str, str]]) -> list[dict]:
+    """The directory moves this target still needs.
+
+    Not filtered by version, unlike renames and retires: a directory move holds the
+    consumer's own files, so whether it is due is a fact about the disk — the old directory
+    is there — and an adopted vault with no manifest needs it as much as an upgrade does.
+    A rename that lands inside the old directory counts as being there: renames run first,
+    so a 1.x skill that 2.0.0 renames into `ideaverse-*` is in place when 3.0.0 moves it on.
+    """
+    out = []
+    for old, new in migration_moves(vault_prefix):
+        src, dst = target / old, target / new
+        arriving = any(r_new.startswith(old + "/") and (target / r_old).is_file()
+                       for r_old, r_new in renames)
+        if not (src.is_dir() or arriving):
+            continue
+        # A destination holding only empty scaffold directories is not a conflict; one
+        # holding a file is, because merging two trees of notes is a human's call.
+        blocked = dst.exists() and any(p.is_file() for p in dst.rglob("*"))
+        note = (f"both {old}/ and {new}/ hold files — merge them by hand, then re-run"
+                if blocked else f"from {old}/ — every file inside moves with it, untouched")
+        out.append(dict(old=old, new=new, blocked=blocked, note=note))
+    return out
+
+
+def origin_resolver(renames: list[tuple[str, str]], moves: list[tuple[str, str]]):
+    """Map a current path back to where it lived before the given renames and moves."""
+    back = {new: old for old, new in renames}
+
+    def origin(rel: str) -> str:
+        seen = set()
+        while rel not in seen:
+            seen.add(rel)
+            if rel in back:
+                rel = back[rel]
+                continue
+            for old, new in moves:
+                if rel.startswith(new + "/"):
+                    rel = old + rel[len(new):]
+                    break
+            else:
+                break
+        return rel
+    return origin
+
+
 def plan_renames(vault_prefix: str, migrations: list[dict]) -> list[tuple[str, str]]:
     out = []
     for m in migrations:
@@ -373,6 +448,26 @@ def apply_plan(target: Path, vault_prefix: str, tokens: dict, briefing: str,
             except OSError:
                 break
 
+    # Directory moves next, and before the scaffold: creating `vault/atlas/…` first would
+    # leave the destination standing, and a destination that exists cannot take a rename.
+    for a in actions:
+        if a["action"] != "move":
+            continue
+        src, dst = target / a["src"], target / a["dest"]
+        if dst.exists():
+            if any(p.is_file() for p in dst.rglob("*")):       # planned empty; never delete
+                continue                                       # a file to make room
+            shutil.rmtree(dst)
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(src), str(dst))
+        for d in src.parents:
+            if d == target or target not in d.parents:
+                break
+            try:
+                d.rmdir()
+            except OSError:
+                break
+
     for d in AIOS_SCAFFOLD_DIRS:
         (target / d).mkdir(parents=True, exist_ok=True)
     for d in SCAFFOLD_DIRS:
@@ -382,6 +477,13 @@ def apply_plan(target: Path, vault_prefix: str, tokens: dict, briefing: str,
     by_src = {i.src: i for i in payload(vault_prefix, seed_dests)}
 
     files = dict(manifest.get("files", {}))
+    # A record written under a path that has since been renamed or moved follows the file,
+    # or a --map name recorded under the old key is forgotten and the file added twice.
+    key_of = origin_resolver(plan_renames(vault_prefix, migrations), migration_moves(vault_prefix))
+    for item in by_src.values():
+        old = key_of(item.dest)
+        if item.dest not in files and old != item.dest and old in files:
+            files[item.dest] = files.pop(old)
     for a in actions:
         dest = target / a["dest"]
         if a["action"] in ("add", "update"):
@@ -443,7 +545,7 @@ def detect_mode(target: Path, vault_prefix: str, manifest: dict) -> str:
         # `aiOS/` may still sit inside the vault here: a pre-2.0.0 install has no manifest
         # once it is adopted, and adopting it is exactly what must happen next.
         has_vault = ((target / "aiOS").is_dir() or (vault / "aiOS").is_dir()
-                     or (vault / "ideaVerse").is_dir())
+                     or any((vault / d).is_dir() for d in ("vault", *LEGACY_SOURCE_DIRS)))
         return "adopt" if has_vault else "install"
     if semver(manifest.get("chironVersion", "0")) < semver(version()):
         return "upgrade"
@@ -451,7 +553,7 @@ def detect_mode(target: Path, vault_prefix: str, manifest: dict) -> str:
 
 
 def report(mode: str, actions: list[dict], migrations: list[dict], applied: bool) -> int:
-    order = ["add", "update", "conflict", "review", "retire", "keep"]
+    order = ["move", "blocked", "add", "update", "conflict", "review", "retire", "keep"]
     groups = {k: [a for a in actions if a["action"] == k] for k in order}
 
     verb = "Applied" if applied else "Plan"
@@ -465,12 +567,16 @@ def report(mode: str, actions: list[dict], migrations: list[dict], applied: bool
                 bits.append(f"{len(m['renames'])} rename(s)")
             if m.get("retires"):
                 bits.append(f"{len(m['retires'])} retire(s)")
+            if m.get("moves"):
+                bits.append(f"{len(m['moves'])} directory move(s)")
             print(f"  {m['version']}: {', '.join(bits) or 'notes only'}")
             if m.get("note"):
                 print(f"      note: {m['note']}")
         print()
 
     labels = {
+        "move": "MOVE      (directory renamed — contents untouched)",
+        "blocked": "BLOCKED   (old and new directory both hold files — not moved)",
         "add": "ADD       (missing here)",
         "update": "UPDATE    (pristine — safe to overwrite)",
         "conflict": "CONFLICT  (you edited it — left alone)",
@@ -490,7 +596,7 @@ def report(mode: str, actions: list[dict], migrations: list[dict], applied: bool
     if not actions and not migrations:
         print("Nothing to do — this vault matches chiron " + version() + ".")
 
-    needs_human = groups["conflict"] or groups["review"] or groups["keep"]
+    needs_human = groups["conflict"] or groups["review"] or groups["keep"] or groups["blocked"]
     if needs_human and not applied:
         print("Conflicts and reviews are NOT written by --apply. Merge them yourself, or")
         print("let the agent merge the seeded ones semantically.")
@@ -498,7 +604,7 @@ def report(mode: str, actions: list[dict], migrations: list[dict], applied: bool
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Install, adopt, upgrade or verify a chiron ideaVerse.")
+    ap = argparse.ArgumentParser(description="Install, adopt, upgrade or verify a chiron vault.")
     ap.add_argument("--target", required=True, help="repo to install into")
     ap.add_argument("--vault-root", default=None, help="vault directory name (default: docs)")
     ap.add_argument("--at-repo-root", action="store_true", help="vault IS the repo root")
@@ -506,7 +612,7 @@ def main() -> int:
     ap.add_argument("--project-domain", default="")
     ap.add_argument("--roles", default="", help="comma-separated; empty means solo")
     ap.add_argument("--briefing-note", default=None, help="basename of the briefing note")
-    ap.add_argument("--wiki-skill", default="ideaverse-wiki-sync")
+    ap.add_argument("--wiki-skill", default="vault-wiki-sync")
     ap.add_argument("--map", action="append", default=[], metavar="SRC=DEST",
                     help="install a payload path to a non-default destination")
     g = ap.add_mutually_exclusive_group(required=True)
@@ -536,7 +642,8 @@ def main() -> int:
     if not manifest:
         for cand in ("docs/", ""):
             probe = target / cand
-            if (probe / "ideaVerse").is_dir() or (probe / "aiOS").is_dir():
+            if (probe / "aiOS").is_dir() or any(
+                    (probe / d).is_dir() for d in ("vault", *LEGACY_SOURCE_DIRS)):
                 vault_prefix = cand
                 break
     if vault_prefix is None:
@@ -563,7 +670,7 @@ def main() -> int:
         # than `.`, which reads as "no vault directory" the moment the mode is switched.
         "VAULT_DIR_NAME": vault_prefix.rstrip("/") or "docs",
         "BRIEFING_NOTE": briefing,
-        "WIKI_SKILL": args.wiki_skill or stored.get("WIKI_SKILL", "ideaverse-wiki-sync"),
+        "WIKI_SKILL": args.wiki_skill or stored.get("WIKI_SKILL", "vault-wiki-sync"),
         "VAULT_AT_REPO_ROOT": "true" if vault_prefix == "" else "false",
         "date": str(date.today()),
     }
@@ -591,7 +698,8 @@ def main() -> int:
                           "vaultRoot": vault_prefix.rstrip("/") or ".",
                           "tokens": tokens, "migrations": migrations,
                           "actions": actions}, indent=2))
-        return 1 if any(a["action"] in ("conflict", "review", "keep") for a in actions) else 0
+        return 1 if any(a["action"] in ("conflict", "review", "keep", "blocked")
+                        for a in actions) else 0
 
     # No verify-mode short-circuit: with nothing writable, apply_plan only recomputes the
     # manifest, and that is sometimes exactly the repair needed — a --map given on a run

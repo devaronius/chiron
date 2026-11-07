@@ -105,5 +105,47 @@
     ],
     "retires": [],
     "note": "aiOS/ moves out of the vault to the repo root, scripts become tools/<group>/, agents/ becomes runbooks/, and the vault skills take an `ideaverse-` prefix. A vault whose `vaultAtRepoRoot` is true renames in place and only the inner paths move. After the upgrade: point your harness config at the renamed skills and at .claude/hooks/open-items-lane.py (SessionStart), set `assignees.self` and `vaultDir` in aios.config.json, and move any local scripts from aiOS/scripts/local/ to aiOS/tools/ideaVerse/local/."
+  },
+  {
+    "version": "3.0.0",
+    "moves": [
+      [
+        "{vault}/ideaVerse",
+        "{vault}/vault"
+      ],
+      [
+        "aiOS/tools/ideaVerse",
+        "aiOS/tools/vault"
+      ],
+      [
+        ".claude/skills/ideaverse-vault-health",
+        ".claude/skills/vault-health"
+      ],
+      [
+        ".claude/skills/ideaverse-contradiction-check",
+        ".claude/skills/vault-contradiction-check"
+      ],
+      [
+        ".claude/skills/ideaverse-coverage-gap",
+        ".claude/skills/vault-coverage-gap"
+      ],
+      [
+        ".claude/skills/ideaverse-modeling",
+        ".claude/skills/vault-modeling"
+      ],
+      [
+        ".claude/skills/ideaverse-note-review",
+        ".claude/skills/vault-note-review"
+      ],
+      [
+        ".claude/skills/ideaverse-research-capture",
+        ".claude/skills/vault-research-capture"
+      ],
+      [
+        ".claude/skills/ideaverse-wiki-sync",
+        ".claude/skills/vault-wiki-sync"
+      ]
+    ],
+    "note": "The ideaVerse is renamed to the vault: the notes folder <vault>/ideaVerse/ becomes <vault>/vault/, aiOS/tools/ideaVerse/ (local/ included) becomes aiOS/tools/vault/, and the ideaverse-* skills become vault-* (ideaverse-vault-health is now vault-health). Each moves as a whole directory, your own files with it. After the upgrade: in aiOS/aios.config.json set wikiSkillName to vault-wiki-sync if it still names ideaverse-wiki-sync; point any harness config, schedule or local script at the new skill names and aiOS/tools/vault/ paths; and fix any link or path in your own notes that spells out ideaVerse/. A local script that imports vault_lib.IDEAVERSE_DIR still runs — it is an alias of SOURCE_DIR."
   }
 ]

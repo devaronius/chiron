@@ -93,7 +93,7 @@ xychart-beta
 
 ## Engineering & conventions
 
-<!-- Cross-cutting technical decisions, new shared components/atoms, new IdeaVerse conventions recorded this sprint, anything that should outlive the sprint. -->
+<!-- Cross-cutting technical decisions, new shared components/atoms, new Vault conventions recorded this sprint, anything that should outlive the sprint. -->
 
 <div style="break-after: page;"></div>
 

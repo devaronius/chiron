@@ -23,7 +23,7 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-SCANNER = REPO_ROOT / "aiOS" / "tools" / "ideaVerse" / "open-items.py"
+SCANNER = REPO_ROOT / "aiOS" / "tools" / "vault" / "open-items.py"
 TIMEOUT = 20
 
 

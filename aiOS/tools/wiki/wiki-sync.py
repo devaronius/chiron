@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-wiki-sync — detect ideaVerse source changes that need (re)compiling into the wiki.
+wiki-sync — detect vault source changes that need (re)compiling into the wiki.
 
-It compares the raw source notes under ideaVerse/ against:
+It compares the raw source notes under vault/ against:
   1. a content-hash manifest (wiki/.wiki-sync.json) snapshotted at the last compile, and
   2. the wiki catalog (wiki/wiki.catalog.jsonl), whose `sources[]` say which note(s)
      each source was compiled into.
@@ -16,7 +16,7 @@ and reports four states:
 It does NOT write wiki notes (compilation is a judgment call). After you reconcile
 the wiki, run `--update` to re-snapshot the manifest as the new baseline.
 
-Lives in aiOS/tools/wiki/ but operates on wiki/ + ideaVerse/ —
+Lives in aiOS/tools/wiki/ but operates on wiki/ + vault/ —
 locations are resolved relative to the vault root, so it runs from any working directory.
 
 Usage:
@@ -34,14 +34,14 @@ import re
 import sys
 from pathlib import Path
 
-# Layout comes from vault_lib in the sibling tools/ideaVerse group — one definition of
+# Layout comes from vault_lib in the sibling tools/vault group — one definition of
 # where the vault is, rather than a second copy that can drift from it.
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "ideaVerse"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "vault"))
 import vault_lib as V  # noqa: E402
 
 VAULT_DIR = V.VAULT_DIR
 WIKI_DIR = V.WIKI_DIR
-IDEAVERSE_DIR = V.IDEAVERSE_DIR
+SOURCE_DIR = V.SOURCE_DIR
 CATALOG = WIKI_DIR / "wiki.catalog.jsonl"
 MANIFEST = WIKI_DIR / ".wiki-sync.json"               # baseline lives with the wiki
 
@@ -53,12 +53,12 @@ def sha256(path: Path) -> str:
 
 
 def scan_sources() -> dict[str, dict]:
-    """All *.md under ideaVerse, keyed by path relative to ideaVerse root."""
+    """All *.md under vault, keyed by path relative to vault root."""
     out: dict[str, dict] = {}
-    if not IDEAVERSE_DIR.is_dir():
-        sys.exit(f"ideaVerse not found at {IDEAVERSE_DIR}")
-    for p in sorted(IDEAVERSE_DIR.rglob("*.md")):
-        rel = p.relative_to(IDEAVERSE_DIR).as_posix()
+    if not SOURCE_DIR.is_dir():
+        sys.exit(f"vault not found at {SOURCE_DIR}")
+    for p in sorted(SOURCE_DIR.rglob("*.md")):
+        rel = p.relative_to(SOURCE_DIR).as_posix()
         out[rel] = {"sha256": sha256(p), "size": p.stat().st_size}
     return out
 
@@ -125,7 +125,7 @@ def unreconciled(changed: list[str], cover: dict[str, list[str]],
     """
     out = []
     for rel in changed:
-        src_date = updated_of(IDEAVERSE_DIR / rel)
+        src_date = updated_of(SOURCE_DIR / rel)
         if not src_date:
             continue
         for note in notes_for(rel, cover):
@@ -146,9 +146,9 @@ def main() -> int:
         # No abbreviations: `--up` must not silently become `--update`.
         # inspector-scope.py allowlists the flags a reviewer may pass, and argparse
         # accepting a prefix would let one through a reviewer never typed.
-        allow_abbrev=False, description="Check ideaVerse sources against the compiled wiki.")
+        allow_abbrev=False, description="Check vault sources against the compiled wiki.")
     ap.add_argument("-u", "--update", action="store_true",
-                    help="Re-snapshot the manifest to the current ideaVerse state (new baseline).")
+                    help="Re-snapshot the manifest to the current vault state (new baseline).")
     ap.add_argument("-q", "--quiet", action="store_true", help="Print only the summary line.")
     args = ap.parse_args()
 
@@ -178,7 +178,7 @@ def main() -> int:
     drift = bool(new or changed or deleted)
 
     if not args.quiet:
-        print(f"Wiki ↔ ideaVerse sync   ({IDEAVERSE_DIR})\n")
+        print(f"Wiki ↔ vault sync   ({SOURCE_DIR})\n")
         if first_run:
             print("⚠ No manifest yet — 'NEW/CHANGED/DELETED' can't be computed.")
             print("  Run with `--update` to create the baseline.\n")

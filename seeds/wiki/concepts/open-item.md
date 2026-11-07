@@ -14,4 +14,4 @@ An actionable unit of work (a to-do or a dated commitment) **owned by exactly on
 - **Ripe ≠ ready.** An undated item is never ripe for the human digest, but is ready for the agent queue immediately; an unparseable `due::` is ripe *and* not ready, so a typo cannot authorise unattended work.
 - The day note and the open-items ledger are **views**; the owning effort/project note is the single source of truth.
 
-**Sources:** [open_item.md](../../ideaVerse/atlas/concepts/open_item.md)
+**Sources:** [open_item.md](../../vault/atlas/concepts/open_item.md)

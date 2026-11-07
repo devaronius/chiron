@@ -27,11 +27,11 @@ except ImportError:       # pragma: no cover
 
 
 def vault_dir() -> pathlib.Path | None:
-    """The installed vault's `ideaVerse/`, or None outside an installed tree.
+    """The installed vault's `vault/`, or None outside an installed tree.
 
     The suite ships with the skill, so it runs in repos whose vault is not where this
     one's is: `aiOS/aios.config.json` is the only thing that knows. Hardcoding
-    `<repo>/docs/ideaVerse` made the vault-wide citation test pass in the vault it was
+    `<repo>/docs/vault` made the vault-wide citation test pass in the vault it was
     written in and fail everywhere else.
     """
     for repo in pathlib.Path(__file__).resolve().parents:
@@ -43,7 +43,7 @@ def vault_dir() -> pathlib.Path | None:
         except (OSError, ValueError):
             return None
         root = repo if cfg.get("vaultAtRepoRoot") else repo / cfg.get("vaultDir", "docs")
-        return root / "ideaVerse"
+        return root / "vault"
     return None
 
 

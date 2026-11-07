@@ -22,7 +22,7 @@ End of the working day, or on demand. One note per working day. A note for today
 
 Resolve "today" with `date +%F`, then gather from whatever sources this project actually uses:
 
-1. **Today's day note (if any)** — `ideaVerse/calendar/days/<today>.md`. Hand-written content is authoritative; add to it.
+1. **Today's day note (if any)** — `vault/calendar/days/<today>.md`. Hand-written content is authoritative; add to it.
 2. **The day's discussions** — chat threads, meetings, reviews touching the work. Filter banter; capture gist + decision + who.
 3. **Repo activity** — commits since the last day note:
    ```bash
@@ -30,7 +30,7 @@ Resolve "today" with `date +%F`, then gather from whatever sources this project 
    ```
    plus any PRs opened/reviewed today.
 4. **Trackers** — tickets/stories/bugs touched today.
-5. **Projects** — `ideaVerse/efforts/projects/*.md` for the deadline/status a task or release ties back to.
+5. **Projects** — `vault/efforts/projects/*.md` for the deadline/status a task or release ties back to.
 
 ## Format — the at-a-glance layer & open-item schema
 
@@ -50,15 +50,15 @@ The day note leads with a scannable layer, then the rich prose below it (skim fi
 
 ## Output
 
-Write or merge into `ideaVerse/calendar/days/<today>.md`. One file per day; never overwrite a prior day. Set `created`/`updated`, add relevant `[[project]]`s to `related`, and list every source used in `sources`.
+Write or merge into `vault/calendar/days/<today>.md`. One file per day; never overwrite a prior day. Set `created`/`updated`, add relevant `[[project]]`s to `related`, and list every source used in `sources`.
 
 Then refresh the cross-note **[open-items ledger](../../open-items.md)**:
 
 ```bash
-python3 aiOS/tools/ideaVerse/open-items.py --today <today>
+python3 aiOS/tools/vault/open-items.py --today <today>
 ```
 
-It re-scans every [[open_item]] in the vault, recomputes aging from `raised::`, and rewrites `ideaVerse/open-items.md`. `--check` prints without writing and exits non-zero if the ledger is stale — handy in CI.
+It re-scans every [[open_item]] in the vault, recomputes aging from `raised::`, and rewrites `vault/open-items.md`. `--check` prints without writing and exits non-zero if the ledger is stale — handy in CI.
 
 ## Rules
 

@@ -10,8 +10,8 @@ metadata:
 Renders a markdown note straight to PDF. **Obsidian is not involved** — the pipeline is markdown → HTML (python-markdown) → headless Chrome `--print-to-pdf`.
 
 ```bash
-python3 .claude/skills/pdf-builder/md2pdf.py "docs/ideaVerse/calendar/sprints/2026 sprint 3.md"
-#   docs/ideaVerse/calendar/sprints/2026 sprint 3.pdf
+python3 .claude/skills/pdf-builder/md2pdf.py "docs/vault/calendar/sprints/2026 sprint 3.md"
+#   docs/vault/calendar/sprints/2026 sprint 3.pdf
 #   13 pages · 444 KB · 2 diagram(s)
 ```
 

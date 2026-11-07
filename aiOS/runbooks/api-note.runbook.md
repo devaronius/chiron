@@ -10,11 +10,11 @@ aliases: ["API Note Runbook", "api-note"]
 
 # API Note — Capture Runbook
 
-How to document a backend API in the ideaVerse. This is the **runbook**; the output skeletons it fills live in [[api-note.template]].
+How to document a backend API in the vault. This is the **runbook**; the output skeletons it fills live in [[api-note.template]].
 
 An API note is **two paired artifacts** — keep the `<name>_api` / `<name>-api` naming so they pair up (and every basename is unique across the vault):
 
-1. **Raw clipping** (source) → `ideaVerse/atlas/apis/<name>_api.md` — the full Swagger/OpenAPI dump, verbatim, for offline fidelity.
+1. **Raw clipping** (source) → `vault/atlas/apis/<name>_api.md` — the full Swagger/OpenAPI dump, verbatim, for offline fidelity.
 2. **Entity note** (compiled) → `wiki/entities/<name>-api.md` — a short, queryable summary that **cites the clipping** so it stays covered.
 
 ## Steps
