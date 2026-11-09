@@ -1,5 +1,8 @@
 {
   "name": "archive",
-  "description": "Archive-style documentation: atlas/collections/ (one note per archive collection, with a full transcription of its items) and atlas/people/ (one note per person named in the sources, guild facts only), templates, a register importer and archive lint.",
-  "scaffold": ["vault/atlas/collections", "vault/atlas/people"]
+  "description": "Archive-style documentation: atlas/collections/ (one note per archive collection, with a full transcription of its items) and atlas/people/ (one note per person named in the sources, organisation facts only), templates, a register importer and archive lint.",
+  "scaffold": [
+    "vault/atlas/collections",
+    "vault/atlas/people"
+  ]
 }

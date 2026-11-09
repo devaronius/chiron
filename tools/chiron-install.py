@@ -168,8 +168,9 @@ MODULE_BLOCK = re.compile(r"<!-- module:([\w-]+) -->\n?(.*?)<!-- /module:\1 -->\
 
 
 def strip_modules(text: str, modules: list[str]) -> str:
-    """Seeded files carry module sections between markers; drop the ones not chosen."""
-    return MODULE_BLOCK.sub(lambda m: m.group(0) if m.group(1) in modules else "", text)
+    """Seeded files carry module sections between markers: keep the content of a chosen module
+    (without its markers, which would break the Markdown around them), drop the others."""
+    return MODULE_BLOCK.sub(lambda m: m.group(2) if m.group(1) in modules else "", text)
 
 
 def skill_dirs() -> list[Path]:
@@ -284,14 +285,21 @@ def remap(item: Item, mapping: dict) -> str:
 
     Matches a whole directory as well as a single file, because the renames that actually
     happen are directory-level: a consumer renames the skill `skills/knowledge/wiki-sync` to
-    `cca-wiki-sync`, not each file inside it.
+    `cca-wiki-sync`, not each file inside it. A module file is matched on its path inside the
+    module too, so `--map aiOS/tools/vault=…` also moves `modules/<name>/aiOS/tools/vault/…`.
     """
-    if item.src in mapping:
-        return mapping[item.src]
-    for k, v in mapping.items():
-        prefix = k.rstrip("/")
-        if item.src.startswith(prefix + "/"):
-            return v.rstrip("/") + item.src[len(prefix):]
+    keys = [item.src]
+    mm = re.match(r"modules/[^/]+/(.+)$", item.src)
+    if mm:
+        keys.append(mm.group(1))
+    for src in keys:
+        if src in mapping:
+            return mapping[src]
+    for src in keys:
+        for k, v in mapping.items():
+            prefix = k.rstrip("/")
+            if src.startswith(prefix + "/"):
+                return v.rstrip("/") + src[len(prefix):]
     return item.dest
 
 
@@ -733,8 +741,12 @@ def main() -> int:
               file=sys.stderr)
         return 2
     modules = sorted(set(manifest.get("modules", [])) | set(args.module))
+    gone = [m for m in modules if m not in known]
+    if gone:
+        print(f"⚠ module(s) recorded in the manifest but no longer shipped by chiron: {', '.join(gone)}; "
+              "their files are left in place and are no longer managed", file=sys.stderr)
+        modules = [m for m in modules if m in known]
     tokens["MODULES"] = ",".join(modules)
-    tokens["MODULES_JSON"] = json.dumps(modules)
 
     mapping = {}
     for spec in args.map:

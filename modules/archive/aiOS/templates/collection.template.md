@@ -23,10 +23,11 @@ aliases: []
 
 ## Transcription
 
-<!-- Full transcription, one row per item: the master record. A generated table sits between
-     `<!-- register:begin -->` and `<!-- register:end -->`; change it through register-import.py
-     (diff, then apply accepted rows), never by overwriting it. A long document gets its own
-     transcription note in a subfolder named after the collection. -->
+<!-- Full transcription, one row per item: the master record. For a delivered spreadsheet, run
+     register-import.py init (it adds the generated table with its own start and end markers, and
+     replaces the placeholder table below); later deliveries go through diff and apply, never a
+     rewrite. A long document gets its own transcription note in a subfolder named after the
+     collection. -->
 
 | Item | ... |
 |---|---|

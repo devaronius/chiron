@@ -13,17 +13,21 @@ unit** — `VERSION` covers everything under `aiOS/`, `seeds/`, `skills/` and `h
 
 - **Optional modules** (`modules/<name>/`, `--module <name>`, repeatable). A module mirrors
   the payload layout (`aiOS/`, `seeds/`) and declares extra scaffold directories in
-  `module.json`. The choice is stored in the manifest (`modules`) and in
-  `aios.config.json`, so upgrades keep it; opting in on an up-to-date install runs as an
-  upgrade. Seeded files carry module sections between `<!-- module:<name> -->` markers,
-  stripped for repos that did not choose the module.
+  `module.json`. The choice is stored in the manifest (`modules`), so upgrades keep it;
+  opting in on an up-to-date install runs as an upgrade. Seeded files carry module sections
+  between `<!-- module:<name> -->` markers: a chosen module's section is installed without
+  its markers, the others are dropped. On an existing install the seeded vault map then shows
+  as a REVIEW, so a human or agent merges the new section in. A module the manifest names but
+  chiron no longer ships is reported and left alone. `--map` also applies to module files.
 - **`archive` module**, for vaults that document an archive rather than an IT system:
   `atlas/collections/` (one note per collection, `kind: objects | photos | documents`, with a
   full transcription that is the master record) and `atlas/people/` (one note per person
   named in the sources, organisation facts only), the collection and person templates,
   `register-import.py` (`init`, `diff`, `apply --rows`: a delivered spreadsheet is merged row
-  by row, never overwritten) and `archive-lint.py` (collection kinds, person basenames,
-  forbidden personal data, facts against configurable master lists). First built in the
+  by row on named key columns, never overwritten, and note-only columns are kept) and
+  `archive-lint.py` (collection kinds, person basenames, forbidden personal data outside HTML
+  comments, facts against master lists configured under `archive.masterLists` in
+  `aios.config.json`). Module tests ship as `aiOS/tools/vault/tests/test_archive_module.py`. First built in the
   Catharina Gilde Helmond vault.
 
 ## [3.0.1] — 2026-11-07

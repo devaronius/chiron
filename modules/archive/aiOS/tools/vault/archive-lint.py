@@ -28,11 +28,12 @@ import vault_lib as V  # noqa: E402
 COLL, PEOPLE = V.SOURCE_DIR / "atlas/collections", V.SOURCE_DIR / "atlas/people"
 KINDS = {"objects", "photos", "documents"}
 FORBIDDEN = [
-    (r"\bgebor(en|tedatum)\b|\bgeb\.\s*\d|\bborn\b|\bbirth(day|date)?\b|\bdate of birth\b", "birth date", re.I),
-    (r"\b(woont|woonachtig|adres|address|lives at)\b", "address", re.I),
-    (r"\b(ziek\w*|kanker|cancer|illness|disease|diagnos\w*|surgery|operatie|gezondheid|health)\b", "health", re.I),
-    (r"\b(telefoon|phone|e-?mail)\b|[\w.+-]+@[\w-]+\.[\w.]+|\+?\d[\d ()-]{8,}\d", "contact", re.I),
+    (r"\bgeboren\b|\bgeboorte\w*|\bgeb\.\s*\d|\bborn\b|\bbirth(day|date)?\b|\bdate of birth\b", "birth date", re.I),
+    (r"\b(woont|woonachtig|woonadres|adres|address|lives at)\b", "address", re.I),
+    (r"\b(ziek|ziekte|ziekten|ziekbed|kanker|cancer|illness|disease|diagnos\w*|surgery|operatie|gezondheid|health)\b", "health", re.I),
+    (r"\b(telefoon\w*|tel\.|phone|e-?mail)\b|[\w.+-]+@[\w-]+\.[\w.]+|(?<![\d-])(?:\+31|0031|06)[\s-]?\d{8}(?![\d-])|(?<![\d-])0\d{2,3}[\s-]\d{6,7}(?![\d-])", "contact", re.I),
 ]
+COMMENT = re.compile(r"<!--.*?-->", re.S)
 
 
 def split(text):
@@ -65,14 +66,14 @@ def main():
             if p.parent == COLL:
                 if p.name == "collections.md":
                     continue
-                m = re.search(r"^kind:\s*(\S+)", fm, re.M)
+                m = re.search(r"^kind:\s*[\"']?([\w-]+)", fm, re.M)
                 if not m or m.group(1) not in KINDS:
                     out.append(f"[COLL-KIND] {rel}: kind must be one of {sorted(KINDS)}")
             elif not re.search(r'up:\s*\[\s*"\[\[', fm):
                 out.append(f"[COLL-UP] {rel}: up: must point to its collection note")
     masters = [(c, master_years(c)) for c in V.CONFIG.get("archive", {}).get("masterLists", [])]
     if PEOPLE.is_dir():
-        for p in sorted(PEOPLE.glob("*.md")):
+        for p in sorted(PEOPLE.rglob("*.md")):
             if p.name == "people.md":
                 continue
             fm, body = split(p.read_text(encoding="utf-8"))
@@ -81,8 +82,9 @@ def main():
                 out.append(f"[PERSON-NAME] {rel}")
             if '"[[people]]"' not in fm:
                 out.append(f"[PERSON-UP] {rel}")
+            text = COMMENT.sub("", fm + "\n" + body)
             for rx, what, fl in FORBIDDEN:
-                m = re.search(rx, body, fl)
+                m = re.search(rx, text, fl)
                 if m:
                     out.append(f"[PERSON-DATA] {rel}: possible {what} ({m.group(0)!r})")
             am = re.search(r"^aliases:\s*\[(.*)\]", fm, re.M)

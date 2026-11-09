@@ -1,21 +1,48 @@
 #!/usr/bin/env python3
 """Bring a delivered register (xlsx) into an archive collection note.
 
-The collection note is the master (vault-map: archive rule). A register is an input:
+The collection note is the master (vault map: archive rule). A register is an input:
 
-    register-import.py diff  <register.xlsx> <collection-note.md>   # list new / changed / missing rows
-    register-import.py init  <register.xlsx> <collection-note.md>   # first fill of the transcription block
-    register-import.py apply <register.xlsx> <collection-note.md> --rows 12,40   # take these register rows over
+    register-import.py init  <register.xlsx> <collection-note.md> [--key COL,COL]  # first fill of the transcription
+    register-import.py diff  <register.xlsx> <collection-note.md>                  # list new / changed / note-only rows
+    register-import.py apply <register.xlsx> <collection-note.md> --rows 12,40     # take these register rows over
 
-Rows are matched on (jaar, first line of naam). The transcription lives between
-`<!-- register:begin -->` and `<!-- register:end -->` in the note. Newlines in cells are written as " / ".
-Columns are taken from the register's header row, so a renamed or added column shows up in `diff`.
-No third-party packages: the xlsx is read as zipped XML.
+The transcription lives between `<!-- register:begin key=COL,COL -->` and `<!-- register:end -->` in the
+note. Rows are matched on the key columns, by header NAME (default: the register's first two columns);
+`init` records the key in the begin marker so every later run uses the same one. Rows with the same key
+are paired in order, and `apply` updates exactly the note row that `diff` paired.
+
+`apply` never drops anything from the note: columns the note has and the register lacks are kept, columns
+new in the register are appended, and only the requested rows change. Newlines in cells are written as
+" / ". No third-party packages: the xlsx is read as zipped XML (first sheet in workbook order).
 """
 import re, sys, zipfile, xml.etree.ElementTree as ET
 
-NS = {"m": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
-BEGIN, END = "<!-- register:begin -->", "<!-- register:end -->"
+NS = {"m": "http://schemas.openxmlformats.org/spreadsheetml/2006/main",
+      "r": "http://schemas.openxmlformats.org/officeDocument/2006/relationships",
+      "rel": "http://schemas.openxmlformats.org/package/2006/relationships"}
+BEGIN_RE = re.compile(r"<!-- register:begin(?: key=([^>]*?))? -->")
+END = "<!-- register:end -->"
+
+
+def first_sheet(z):
+    """Path of the first worksheet in workbook order (not necessarily sheet1.xml)."""
+    try:
+        wb = ET.fromstring(z.read("xl/workbook.xml"))
+        sheet = wb.find("m:sheets/m:sheet", NS)
+        rid = sheet.get("{%s}id" % NS["r"])
+        rels = ET.fromstring(z.read("xl/_rels/workbook.xml.rels"))
+        for rel in rels.findall("rel:Relationship", NS):
+            if rel.get("Id") == rid:
+                t = rel.get("Target").lstrip("/")
+                return t if t.startswith("xl/") else "xl/" + t
+    except (KeyError, AttributeError, ET.ParseError):
+        pass
+    return "xl/worksheets/sheet1.xml"
+
+
+def clean(s):
+    return re.sub(r"\s*\n\s*", " / ", s).replace("|", "\\|").strip()
 
 
 def read_xlsx(path):
@@ -25,7 +52,7 @@ def read_xlsx(path):
         for si in ET.fromstring(z.read("xl/sharedStrings.xml")).findall("m:si", NS):
             ss.append("".join(t.text or "" for t in si.iter("{%s}t" % NS["m"])))
     rows = []
-    for r in ET.fromstring(z.read("xl/worksheets/sheet1.xml")).iter("{%s}row" % NS["m"]):
+    for r in ET.fromstring(z.read(first_sheet(z))).iter("{%s}row" % NS["m"]):
         row = {}
         for c in r.findall("m:c", NS):
             col = re.match(r"[A-Z]+", c.get("r")).group()
@@ -42,18 +69,35 @@ def read_xlsx(path):
                 row[col] = val.strip()
         if row:
             rows.append(row)
+    if not rows:
+        sys.exit(f"{path}: the first sheet is empty")
     head, body = rows[0], rows[1:]
-    cols = [head[k] for k in sorted(head, key=lambda x: (len(x), x))]
-    keyof = {head[k]: k for k in head}
-    return cols, [{c: clean(r.get(keyof[c], "")) for c in cols} for r in body]
+    letters = sorted(head, key=lambda x: (len(x), x))
+    cols, seen = [], {}
+    for L in letters:                                   # duplicate header names get a _2, _3 suffix
+        name = clean(head[L]) or L
+        seen[name] = seen.get(name, 0) + 1
+        cols.append(name if seen[name] == 1 else f"{name}_{seen[name]}")
+    return cols, [{c: clean(r.get(L, "")) for c, L in zip(cols, letters)} for r in body]
 
 
-def clean(s):
-    return re.sub(r"\s*\n\s*", " / ", s).replace("|", "\\|").strip()
+def split_cells(line):
+    return [c.strip() for c in re.split(r"(?<!\\)\|", line)[1:-1]]
 
 
-def rowkey(r, cols):
-    return (r.get(cols[0], ""), r.get(cols[2] if len(cols) > 2 and cols[1] == "tot" else cols[1], "").split(" / ")[0].lower())
+def read_note(path):
+    s = open(path, encoding="utf-8").read()
+    m = BEGIN_RE.search(s)
+    if not m or END not in s[m.end():]:
+        return s, None, [], []
+    key = [k.strip() for k in m.group(1).split(",")] if m.group(1) else []
+    block = s[m.end():s.index(END, m.end())]
+    lines = [l for l in block.strip().splitlines() if l.startswith("|")]
+    if len(lines) < 2:
+        return s, key, [], []
+    cols = split_cells(lines[0])[1:]                    # drop the "#" column
+    rows = [dict(zip(cols, split_cells(l)[1:])) for l in lines[2:]]
+    return s, key, cols, rows
 
 
 def table(cols, rows):
@@ -63,82 +107,87 @@ def table(cols, rows):
     return "\n".join(out)
 
 
-def read_note(path):
-    s = open(path, encoding="utf-8").read()
-    if BEGIN not in s:
-        return s, None, []
-    block = s[s.index(BEGIN) + len(BEGIN):s.index(END)]
-    lines = [l for l in block.strip().splitlines() if l.startswith("|")]
-    if len(lines) < 2:
-        return s, None, []
-    cols = [c.strip() for c in re.split(r"(?<!\\)\|", lines[0])[2:-1]]
-    rows = []
-    for l in lines[2:]:
-        cells = [c.strip() for c in re.split(r"(?<!\\)\|", l)[2:-1]]
-        rows.append(dict(zip(cols, cells)))
-    return s, cols, rows
-
-
-def write_block(path, s, cols, rows):
-    blk = f"{BEGIN}\n{table(cols, rows)}\n{END}"
-    s = s[:s.index(BEGIN)] + blk + s[s.index(END) + len(END):] if BEGIN in s else s.rstrip() + "\n\n" + blk + "\n"
+def write_block(path, s, key, cols, rows):
+    blk = f"<!-- register:begin key={','.join(key)} -->\n{table(cols, rows)}\n{END}"
+    m = BEGIN_RE.search(s)
+    if m:
+        s = s[:m.start()] + blk + s[s.index(END, m.end()) + len(END):]
+    else:
+        s = s.rstrip() + "\n\n" + blk + "\n"
     open(path, "w", encoding="utf-8").write(s)
 
 
-def diff(rcols, rrows, ncols, nrows):
-    if ncols != rcols:
-        print("COLUMNS register:", rcols, "\n        note:    ", ncols)
-    nmap = {}
-    for r in nrows:
-        nmap.setdefault(rowkey(r, ncols), []).append(r)
-    seen = set()
-    changes = []
+def rowkey(r, key):
+    return tuple(r.get(k, "").split(" / ")[0].strip().lower() for k in key)
+
+
+def pair(rrows, nrows, key):
+    """Pair register rows with note rows by key, in order. Returns (pairs, register-only, note-only)."""
+    pool = {}
+    for i, r in enumerate(nrows):
+        pool.setdefault(rowkey(r, key), []).append(i)
+    pairs, new = {}, []
     for i, r in enumerate(rrows, 1):
-        k = rowkey(r, rcols)
-        cand = [x for x in nmap.get(k, []) if id(x) not in seen]
-        if not cand:
-            changes.append(("NEW", i, r, None)); continue
-        n = cand[0]; seen.add(id(n))
-        d = {c: (n.get(c, ""), r.get(c, "")) for c in rcols if n.get(c, "") != r.get(c, "")}
-        if d:
-            changes.append(("CHANGED", i, r, d))
-    for r in nrows:
-        if id(r) not in seen:
-            changes.append(("ONLY IN NOTE", None, r, None))
-    return changes
+        cand = pool.get(rowkey(r, key))
+        if cand:
+            pairs[i] = cand.pop(0)
+        else:
+            new.append(i)
+    used = set(pairs.values())
+    return pairs, new, [j for j in range(len(nrows)) if j not in used]
 
 
 def main():
-    if len(sys.argv) < 4 or sys.argv[1] not in ("diff", "init", "apply"):
+    args = sys.argv[1:]
+    if len(args) < 3 or args[0] not in ("diff", "init", "apply"):
         print(__doc__); sys.exit(2)
-    mode, xlsx, note = sys.argv[1:4]
+    mode, xlsx, note = args[:3]
     rcols, rrows = read_xlsx(xlsx)
-    s, ncols, nrows = read_note(note)
+    s, key, ncols, nrows = read_note(note)
+    if "--key" in args:
+        key = [k.strip() for k in args[args.index("--key") + 1].split(",")]
+    key = key or rcols[:2]
+    missing = [k for k in key if k not in rcols]
+    if missing:
+        sys.exit(f"key column(s) {missing} not in the register's header {rcols}")
     if mode == "init":
         if nrows:
-            sys.exit("note already has a transcription; use diff / apply")
-        write_block(note, s, rcols, rrows); print(f"wrote {len(rrows)} rows"); return
-    changes = diff(rcols, rrows, ncols or [], nrows)
+            sys.exit("the note already has a transcription; use diff / apply")
+        write_block(note, s, key, rcols, rrows); print(f"wrote {len(rrows)} rows, key {key}"); return
+    pairs, new, note_only = pair(rrows, nrows, key)
+    label = lambda r: " ".join(r.get(k, "")[:40] for k in key)
     if mode == "diff":
-        for kind, i, r, d in changes:
-            label = f"{r.get(rcols[0], '')} {r.get('naam', '')[:40]}"
-            print(f"{kind:13} register row {i or '-':>3}  {label}")
-            for c, (a, b) in (d or {}).items():
-                print(f"      {c}: note={a!r}\n      {' ' * len(c)}  reg ={b!r}")
-        print(f"{len(changes)} difference(s)"); return
-    want = {int(x) for x in sys.argv[sys.argv.index("--rows") + 1].split(",")} if "--rows" in sys.argv else set()
-    if not want:
+        if set(rcols) != set(ncols):
+            print("COLUMNS only in register:", [c for c in rcols if c not in ncols],
+                  "| only in note:", [c for c in ncols if c not in rcols])
+        n = 0
+        for i, r in enumerate(rrows, 1):
+            if i in new:
+                print(f"NEW           register row {i:>3}  {label(r)}"); n += 1
+            else:
+                d = {c: (nrows[pairs[i]].get(c, ""), r[c]) for c in rcols if nrows[pairs[i]].get(c, "") != r[c]}
+                if d:
+                    n += 1
+                    print(f"CHANGED       register row {i:>3}  {label(r)}  (note row {pairs[i] + 1})")
+                    for c, (a, b) in d.items():
+                        print(f"      {c}: note={a!r}\n      {' ' * len(c)}  reg ={b!r}")
+        for j in note_only:
+            print(f"ONLY IN NOTE  note row {j + 1:>3}  {label(nrows[j])}"); n += 1
+        print(f"{n} difference(s)"); return
+    if "--rows" not in args:
         sys.exit("apply needs --rows <register row numbers from diff>")
-    by_key = {}
-    for r in nrows:
-        by_key.setdefault(rowkey(r, ncols), []).append(r)
-    for kind, i, r, d in changes:
-        if i in want:
-            if kind == "NEW":
-                nrows.append(r)
-            elif kind == "CHANGED":
-                by_key[rowkey(r, rcols)][0].update(r)
-    write_block(note, s, rcols, nrows); print(f"applied {len(want)} row(s)")
+    want = [int(x) for x in args[args.index("--rows") + 1].split(",")]
+    cols = ncols + [c for c in rcols if c not in ncols]  # keep every note column, append new ones
+    done = 0
+    for i in want:
+        if not 1 <= i <= len(rrows):
+            print(f"skipped register row {i}: out of range"); continue
+        if i in new:
+            nrows.append(dict(rrows[i - 1])); done += 1
+        else:
+            nrows[pairs[i]].update(rrows[i - 1]); done += 1
+    write_block(note, s, key, cols, nrows)
+    print(f"applied {done} row(s)")
 
 
 if __name__ == "__main__":
