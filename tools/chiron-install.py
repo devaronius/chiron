@@ -71,6 +71,10 @@ from pathlib import Path
 CHIRON_ROOT = Path(__file__).resolve().parents[1]
 HASHES_PATH = CHIRON_ROOT / ".chiron-hashes.json"
 MIGRATIONS_PATH = CHIRON_ROOT / "migrations.json"
+# Optional modules: `modules/<name>/` mirrors the payload layout (aiOS/, seeds/) plus a
+# module.json with a description and the extra scaffold directories. A repo opts in with
+# --module <name>; the choice is stored in the manifest so upgrades keep it.
+MODULES_DIR = CHIRON_ROOT / "modules"
 VERSION_PATH = CHIRON_ROOT / "VERSION"
 
 MANIFEST_REL = "aiOS/.chiron-install.json"      # relative to the repo root
@@ -146,6 +150,28 @@ def render(text: str, tokens: dict) -> str:
     return text
 
 
+def available_modules() -> dict:
+    out = {}
+    if MODULES_DIR.is_dir():
+        for d in sorted(MODULES_DIR.iterdir()):
+            meta = read_json(d / "module.json", None)
+            if meta:
+                out[d.name] = meta
+    return out
+
+
+def modules_of(tokens: dict) -> list[str]:
+    return [m for m in tokens.get("MODULES", "").split(",") if m]
+
+
+MODULE_BLOCK = re.compile(r"<!-- module:([\w-]+) -->\n?(.*?)<!-- /module:\1 -->\n?", re.S)
+
+
+def strip_modules(text: str, modules: list[str]) -> str:
+    """Seeded files carry module sections between markers; drop the ones not chosen."""
+    return MODULE_BLOCK.sub(lambda m: m.group(0) if m.group(1) in modules else "", text)
+
+
 def skill_dirs() -> list[Path]:
     """Every skill directory under `skills/`, however deeply it is filed.
 
@@ -188,7 +214,7 @@ class Item:
         return CHIRON_ROOT / self.src
 
 
-def payload(vault_prefix: str, seed_dests: dict) -> list[Item]:
+def payload(vault_prefix: str, seed_dests: dict, modules: list[str] = ()) -> list[Item]:
     items: list[Item] = []
 
     # aiOS/ is repo-root, not vault-relative: it operates on the repo as a whole, and the
@@ -217,6 +243,15 @@ def payload(vault_prefix: str, seed_dests: dict) -> list[Item]:
         if dest is None:                                    # seeds/vault/**, seeds/wiki/**
             dest = f"{vault_prefix}{inner}"
         items.append(Item(rel, dest, "seeded"))
+
+    for m in modules:
+        mroot = MODULES_DIR / m
+        for p in walk(mroot / "aiOS"):
+            rel = p.relative_to(CHIRON_ROOT).as_posix()
+            items.append(Item(rel, p.relative_to(mroot).as_posix(), "managed"))
+        for p in walk(mroot / "seeds"):
+            rel = p.relative_to(CHIRON_ROOT).as_posix()
+            items.append(Item(rel, f"{vault_prefix}{p.relative_to(mroot / 'seeds').as_posix()}", "seeded"))
 
     return items
 
@@ -263,7 +298,8 @@ def remap(item: Item, mapping: dict) -> str:
 def content_for(item: Item, tokens: dict) -> bytes:
     raw = item.abs_src.read_bytes()
     if item.cls == "seeded":
-        return render(raw.decode("utf-8"), tokens).encode("utf-8")
+        text = strip_modules(raw.decode("utf-8"), modules_of(tokens))
+        return render(text, tokens).encode("utf-8")
     return raw
 
 
@@ -298,7 +334,7 @@ def build_plan(target: Path, vault_prefix: str, tokens: dict, briefing: str,
     actions: list[dict] = [dict(action="blocked" if m["blocked"] else "move", dest=m["new"],
                                 src=m["old"], cls="", sha="", note=m["note"]) for m in moves]
     seed_dests = seed_destinations(vault_prefix, briefing)
-    for item in payload(vault_prefix, seed_dests):
+    for item in payload(vault_prefix, seed_dests, modules_of(tokens)):
         dest_rel = remap(item, mapping)
         # A consumer rename recorded at install time follows the file forever.
         recorded = (files.get(dest_rel) or files.get(item.dest)
@@ -480,11 +516,12 @@ def apply_plan(target: Path, vault_prefix: str, tokens: dict, briefing: str,
 
     for d in AIOS_SCAFFOLD_DIRS:
         (target / d).mkdir(parents=True, exist_ok=True)
-    for d in SCAFFOLD_DIRS:
+    mods = available_modules()
+    for d in SCAFFOLD_DIRS + [x for m in modules_of(tokens) for x in mods.get(m, {}).get("scaffold", [])]:
         (target / vault_prefix / d).mkdir(parents=True, exist_ok=True)
 
     seed_dests = seed_destinations(vault_prefix, briefing)
-    by_src = {i.src: i for i in payload(vault_prefix, seed_dests)}
+    by_src = {i.src: i for i in payload(vault_prefix, seed_dests, modules_of(tokens))}
 
     files = dict(manifest.get("files", {}))
     # A record written under a path that has since been renamed or moved follows the file,
@@ -524,7 +561,7 @@ def apply_plan(target: Path, vault_prefix: str, tokens: dict, briefing: str,
                 entry.update(cls=item.cls, src=item.src, installedAs=a["dest"])
 
     # Record every in-sync file too, so the next run has the third fact for all of them.
-    for item in payload(vault_prefix, seed_dests):
+    for item in payload(vault_prefix, seed_dests, modules_of(tokens)):
         rec = files.get(item.dest)
         d = target / (rec.get("installedAs") if rec and rec.get("installedAs") else item.dest)
         if d.exists() and item.dest not in files:
@@ -543,6 +580,7 @@ def apply_plan(target: Path, vault_prefix: str, tokens: dict, briefing: str,
         "vaultRoot": vault_prefix.rstrip("/") or ".",
         "vaultAtRepoRoot": vault_prefix == "",
         "tokens": tokens,
+        "modules": modules_of(tokens),
         "files": files,
     }
 
@@ -623,6 +661,9 @@ def main() -> int:
     ap.add_argument("--roles", default="", help="comma-separated; empty means solo")
     ap.add_argument("--briefing-note", default=None, help="basename of the briefing note")
     ap.add_argument("--wiki-skill", default="vault-wiki-sync")
+    ap.add_argument("--module", action="append", default=[], metavar="NAME",
+                    help="opt into an optional module (repeatable); kept on upgrade. "
+                         "Available: " + ", ".join(available_modules()))
     ap.add_argument("--map", action="append", default=[], metavar="SRC=DEST",
                     help="install a payload path to a non-default destination")
     g = ap.add_mutually_exclusive_group(required=True)
@@ -685,6 +726,16 @@ def main() -> int:
         "date": str(date.today()),
     }
 
+    known = available_modules()
+    unknown = [m for m in args.module if m not in known]
+    if unknown:
+        print(f"✗ unknown module(s): {', '.join(unknown)}; available: {', '.join(known) or 'none'}",
+              file=sys.stderr)
+        return 2
+    modules = sorted(set(manifest.get("modules", [])) | set(args.module))
+    tokens["MODULES"] = ",".join(modules)
+    tokens["MODULES_JSON"] = json.dumps(modules)
+
     mapping = {}
     for spec in args.map:
         if "=" not in spec:
@@ -695,6 +746,10 @@ def main() -> int:
 
     hashes = read_json(HASHES_PATH, {})
     mode = detect_mode(target, vault_prefix, manifest)
+    # Opting into a module on an up-to-date install is an upgrade of that install: its files
+    # are new, not "present upstream, missing here".
+    if mode == "verify" and set(args.module) - set(manifest.get("modules", [])):
+        mode = "upgrade"
     actions, migrations = build_plan(target, vault_prefix, tokens, briefing,
                                      manifest, hashes, mapping)
 

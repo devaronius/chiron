@@ -26,5 +26,6 @@
       "protectedPaths": []
     }
   },
-  "code": {}
+  "code": {},
+  "modules": {{MODULES_JSON}}
 }

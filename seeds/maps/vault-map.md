@@ -53,6 +53,12 @@ The vault follows the **ACE** framework — Atlas = the mind's landscape, Calend
 		- **Backend request** — an ask to another team plus its resolution. An endpoint's wire contract stays single-sourced in its `apis/` clipping and `wiki/entities/` note; a request record **points to it, never restates it**.
 	  **Enforced:** every note here carries `kind: external | process | stakeholder-reference | backend-request`. `vault-lint` reports a missing or unknown kind as `[DOC-KIND]`. Relevance is not machine-checked; the filer decides.
 	- `personas/` — user **personas**.
+<!-- module:archive -->
+	- `collections/` — **archive collections** (archive module): one note per collection, named `collectie_<name>` or `collection_<name>`, from the [collection template](/aiOS/templates/collection.template.md), with `kind: objects | photos | documents`. It holds what the items are, where the originals are kept, where the files live (a directory at the repo root, **never in the vault**), file naming, digitisation status, where items are used, and a **full transcription** of every item. The transcription is the **master**: a register delivered by someone else (a spreadsheet) is an *input*, compared with `python3 aiOS/tools/vault/register-import.py diff <xlsx> <note>` and merged row by row with `apply --rows`, never overwritten wholesale. A long document gets its own transcription note in a subfolder named after the collection.
+	- `people/` — **person notes** (archive module): one per person named in any source, basename `lastname_firstname` (name particles at the end), every spelling seen in `aliases:`, from the [person template](/aiOS/templates/person.template.md). **Organisation facts only**, each with a source; **never** birth dates, addresses, health or contact details. When it is unsure whether two names are one person, keep two notes and put the doubt in each note's open-questions callout. Facts copied from a master list (kings, board) must agree with it. **Enforced** by `python3 aiOS/tools/vault/archive-lint.py` (master lists configured under `archive.masterLists` in `aiOS/aios.config.json`).
+
+> **Archive rule: the vault is the source of truth.** For archive material, files and registers are evidence and deliveries, and publications follow the vault. When sources disagree, the **object beats the register, and the register beats the publication**; the vault records the resolved reading and keeps open differences in the note's open-questions callout. A dated processing note in `calendar/research/` stays as the record of a delivery; its durable facts move into the collection notes.
+<!-- /module:archive -->
 - `calendar/` — the rhythm: `days/`, `briefings/`, `meetings/`, `research/`, `releases/`, `sprints/`.
 	- `research/` — dated findings: research tickets, upgrade and toolchain checks. **Distil at review time, not later:** the moment a research note is reviewed, its durable rule goes to the atlas note that owns the subject, and the research note stays as the dated record. Research is reached by date or by the note that cites it, never read as current truth — a research note nothing links to is one whose findings were never distilled, and `vault-lint` reports it as `[ORPHAN]`.
 - `efforts/` — the output:
@@ -71,6 +77,10 @@ The vault follows the **ACE** framework — Atlas = the mind's landscape, Calend
 | A process, an external party, a request record | `atlas/documents/` |
 | A raw Swagger/OpenAPI dump | `atlas/apis/<service>_api.md` |
 | A kind of user, and what they need | `atlas/personas/` |
+<!-- module:archive -->
+| An archive collection and the transcription of its items | `atlas/collections/` |
+| A person named in the archive | `atlas/people/` |
+<!-- /module:archive -->
 | Our own build work, with its journey and reversals | `efforts/works/` |
 
 > **Optional: code-anchored folders.** A vault sitting beside code can add folders whose shape is dictated by the repo rather than chosen — one note per package, per app, or per feature directory, with the note's basename matching the directory's. That 1:1 is what lets `coverage-gap.py` check coverage mechanically. Add them here when you introduce them, and record the directories under `code` in `aiOS/aios.config.json`.

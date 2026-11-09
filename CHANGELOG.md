@@ -7,6 +7,25 @@ unit** — `VERSION` covers everything under `aiOS/`, `seeds/`, `skills/` and `h
 - **minor** — new files, skills or templates; backward compatible
 - **patch** — fixes to existing files
 
+## [Unreleased]
+
+### Added
+
+- **Optional modules** (`modules/<name>/`, `--module <name>`, repeatable). A module mirrors
+  the payload layout (`aiOS/`, `seeds/`) and declares extra scaffold directories in
+  `module.json`. The choice is stored in the manifest (`modules`) and in
+  `aios.config.json`, so upgrades keep it; opting in on an up-to-date install runs as an
+  upgrade. Seeded files carry module sections between `<!-- module:<name> -->` markers,
+  stripped for repos that did not choose the module.
+- **`archive` module**, for vaults that document an archive rather than an IT system:
+  `atlas/collections/` (one note per collection, `kind: objects | photos | documents`, with a
+  full transcription that is the master record) and `atlas/people/` (one note per person
+  named in the sources, organisation facts only), the collection and person templates,
+  `register-import.py` (`init`, `diff`, `apply --rows`: a delivered spreadsheet is merged row
+  by row, never overwritten) and `archive-lint.py` (collection kinds, person basenames,
+  forbidden personal data, facts against configurable master lists). First built in the
+  Catharina Gilde Helmond vault.
+
 ## [3.0.1] — 2026-11-07
 
 Fixes from the QA pass on 3.0.0.

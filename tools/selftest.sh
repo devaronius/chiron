@@ -414,5 +414,24 @@ inst --target "$T9" --apply --vault-root docs --project-name "Explicit" >/dev/nu
 [ -f "$T9/docs/project-brief.md" ] && ok "--vault-root wins over detection" \
                                    || bad "--vault-root wins over detection"
 
+# ── 11. optional modules ─────────────────────────────────────
+head1 "11. --module archive — opt-in folders, kept on upgrade"
+T10=$(new_repo modules)
+inst --target "$T10" --apply --project-name "Plain" >/dev/null
+[ -d "$T10/docs/vault/atlas/collections" ] && bad "no module folders without --module" || ok "no module folders without --module"
+grep -q "module:archive" "$T10/aiOS/maps/vault-map.md" && bad "module section stripped from the map" || ok "module section stripped from the map"
+inst --target "$T10" --apply --module archive >/dev/null
+[ -d "$T10/docs/vault/atlas/people" ] && ok "module folders scaffolded on opt-in" || bad "module folders scaffolded on opt-in"
+[ -f "$T10/aiOS/tools/vault/archive-lint.py" ] && ok "module tools installed" || bad "module tools installed"
+[ -f "$T10/docs/vault/atlas/collections/collections.md" ] && ok "module hub seeded" || bad "module hub seeded"
+check "module recorded in the manifest" \
+  "$(python3 -c "import json;print(json.load(open('$T10/aiOS/.chiron-install.json'))['modules'])")" "['archive']"
+out=$(inst --target "$T10" --plan)
+grep -q "Nothing to do\|REVIEW" <<<"$out" && ok "a later run without --module keeps the module" || bad "a later run without --module keeps the module"
+grep -q "archive-lint.py" <<<"$(sect "$out" RETIRE "")" && bad "module files are not retired" || ok "module files are not retired"
+( cd "$T10" && python3 aiOS/tools/vault/archive-lint.py --quiet ) && ok "archive-lint runs clean on the seeds" || bad "archive-lint runs clean on the seeds"
+inst --target "$T10" --plan --module nope >/dev/null 2>&1
+check "an unknown module is refused" "$?" "2"
+
 printf '\n\033[1mResult:\033[0m %d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ] || exit 1
