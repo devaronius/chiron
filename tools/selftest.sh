@@ -426,8 +426,17 @@ inst --target "$T10" --apply --module archive >/dev/null
 [ -f "$T10/docs/vault/atlas/collections/collections.md" ] && ok "module hub seeded" || bad "module hub seeded"
 check "module recorded in the manifest" \
   "$(python3 -c "import json;print(json.load(open('$T10/aiOS/.chiron-install.json'))['modules'])")" "['archive']"
+grep -q "module:archive" "$T10/aiOS/maps/vault-map.md" && bad "no module markers left in a chosen module's map" || ok "no module markers left in a chosen module's map"
+grep -q '"modules"' "$T10/aiOS/aios.config.json" && bad "config carries no modules key" || ok "config carries no modules key"
+T11=$(new_repo modules-fresh)
+inst --target "$T11" --apply --project-name "Archive" --module archive >/dev/null
+grep -q "atlas/collections/" "$T11/aiOS/maps/vault-map.md" && ok "fresh install: map has the archive section" || bad "fresh install: map has the archive section"
+( cd "$T11" && python3 -m unittest discover -s aiOS/tools/vault/tests -p 'test_archive*' >/dev/null 2>&1 ) && ok "module tests pass in the installed repo" || bad "module tests pass in the installed repo"
+T12=$(new_repo modules-map)
+inst --target "$T12" --apply --project-name "Mapped" --module archive --map aiOS/tools/vault=aiOS/tools/notes >/dev/null
+[ -f "$T12/aiOS/tools/notes/archive-lint.py" ] && ok "--map moves module files too" || bad "--map moves module files too"
 out=$(inst --target "$T10" --plan)
-grep -q "Nothing to do\|REVIEW" <<<"$out" && ok "a later run without --module keeps the module" || bad "a later run without --module keeps the module"
+sect "$out" ADD "" | grep -q . && bad "a later run without --module keeps the module" || ok "a later run without --module keeps the module"
 grep -q "archive-lint.py" <<<"$(sect "$out" RETIRE "")" && bad "module files are not retired" || ok "module files are not retired"
 ( cd "$T10" && python3 aiOS/tools/vault/archive-lint.py --quiet ) && ok "archive-lint runs clean on the seeds" || bad "archive-lint runs clean on the seeds"
 inst --target "$T10" --plan --module nope >/dev/null 2>&1

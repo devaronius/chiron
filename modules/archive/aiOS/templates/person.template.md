@@ -12,8 +12,8 @@ aliases: []
 
 **{{First Last}}** — <one sentence: who this is to the organisation (role, period).>
 
-<!-- Organisation facts only, each with a source. Never birth dates, addresses, health or
-     contact details: archive-lint reports them as [PERSON-DATA]. -->
+<!-- Organisation facts only, each with a source. Personal details are not allowed in a person
+     note (see the archive section of the vault map); archive-lint reports them as [PERSON-DATA]. -->
 
 ## History
 
