@@ -113,7 +113,17 @@ def write_block(path, s, key, cols, rows):
     if m:
         s = s[:m.start()] + blk + s[s.index(END, m.end()) + len(END):]
     else:
-        s = s.rstrip() + "\n\n" + blk + "\n"
+        # first fill: under a "## Transcription" heading, replacing a placeholder table there
+        h = re.search(r"^## Transcription[^\n]*\n", s, re.M)
+        if h:
+            rest = s[h.end():]
+            t = re.match(r"(?:[^\n|#][^\n]*\n|\n)*?((?:\|[^\n]*\n)+)", rest)
+            if t and not rest[:t.start(1)].count("\n## "):
+                s = s[:h.end()] + rest[:t.start(1)] + blk + "\n" + rest[t.end(1):]
+            else:
+                s = s[:h.end()] + "\n" + blk + "\n" + rest
+        else:
+            s = s.rstrip() + "\n\n" + blk + "\n"
     open(path, "w", encoding="utf-8").write(s)
 
 
@@ -147,6 +157,8 @@ def main():
     if "--key" in args:
         key = [k.strip() for k in args[args.index("--key") + 1].split(",")]
     key = key or rcols[:2]
+    if any("," in k for k in key):
+        sys.exit("a key column name may not contain a comma (it is stored as key=a,b in the note)")
     missing = [k for k in key if k not in rcols]
     if missing:
         sys.exit(f"key column(s) {missing} not in the register's header {rcols}")

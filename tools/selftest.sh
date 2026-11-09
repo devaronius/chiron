@@ -426,12 +426,13 @@ inst --target "$T10" --apply --module archive >/dev/null
 [ -f "$T10/docs/vault/atlas/collections/collections.md" ] && ok "module hub seeded" || bad "module hub seeded"
 check "module recorded in the manifest" \
   "$(python3 -c "import json;print(json.load(open('$T10/aiOS/.chiron-install.json'))['modules'])")" "['archive']"
-grep -q "module:archive" "$T10/aiOS/maps/vault-map.md" && bad "no module markers left in a chosen module's map" || ok "no module markers left in a chosen module's map"
 grep -q '"modules"' "$T10/aiOS/aios.config.json" && bad "config carries no modules key" || ok "config carries no modules key"
 T11=$(new_repo modules-fresh)
 inst --target "$T11" --apply --project-name "Archive" --module archive >/dev/null
 grep -q "atlas/collections/" "$T11/aiOS/maps/vault-map.md" && ok "fresh install: map has the archive section" || bad "fresh install: map has the archive section"
-( cd "$T11" && python3 -m unittest discover -s aiOS/tools/vault/tests -p 'test_archive*' >/dev/null 2>&1 ) && ok "module tests pass in the installed repo" || bad "module tests pass in the installed repo"
+grep -q "module:archive" "$T11/aiOS/maps/vault-map.md" && bad "fresh install: no module markers left in the map" || ok "fresh install: no module markers left in the map"
+mt=$( cd "$T11" && python3 -m unittest discover -s aiOS/tools/vault/tests -p 'test_archive*' 2>&1 | tail -1 )
+check "module tests pass in the installed repo, none skipped" "$mt" "OK"
 T12=$(new_repo modules-map)
 inst --target "$T12" --apply --project-name "Mapped" --module archive --map aiOS/tools/vault=aiOS/tools/notes >/dev/null
 [ -f "$T12/aiOS/tools/notes/archive-lint.py" ] && ok "--map moves module files too" || bad "--map moves module files too"

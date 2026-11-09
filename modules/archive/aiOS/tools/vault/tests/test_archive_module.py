@@ -93,6 +93,14 @@ class RegisterImport(unittest.TestCase):
         self.assertIn("applied 1 row(s)", out)
         self.assertEqual(len(table_rows(self.note)[1]), 2)
 
+    def test_init_replaces_the_placeholder_under_the_heading(self):
+        self.note.write_text("# C\n\n## Transcription\n\n<!-- help -->\n\n| Item | ... |\n|---|---|\n\n## Not to be confused with\n\nx\n")
+        xlsx(self.d / "r.xlsx", [["jaar", "naam"], ["1883", "Wetzer"]])
+        run("init", self.d / "r.xlsx", self.note)
+        s = self.note.read_text()
+        self.assertNotIn("| Item | ... |", s)
+        self.assertLess(s.index("register:begin"), s.index("## Not to be confused with"))
+
     def test_empty_sheet_is_a_clear_error(self):
         xlsx(self.d / "e.xlsx", [])
         p = run("init", self.d / "e.xlsx", self.note, ok=False)
@@ -106,7 +114,7 @@ class PrivacyPatterns(unittest.TestCase):
     def setUpClass(cls):
         src = LINT.read_text()
         ns = {"re": re}
-        exec(src[src.index("FORBIDDEN = ["):src.index("COMMENT =")], ns)
+        exec(src[src.index("FORBIDDEN = ["):src.index("\n\n\ndef split(")], ns)
         cls.F = ns["FORBIDDEN"]
 
     def hits(self, text):
@@ -114,21 +122,69 @@ class PrivacyPatterns(unittest.TestCase):
 
     def test_flags_personal_data(self):
         for t in ["geboren 1923", "Geboortedatum: 1 mei", "Woonadres Markt 1", "Telefoonnummer bekend",
-                  "06-12345678", "0492 123456", "was lang ziek", "j@example.org"]:
+                  "06-12345678", "0492 123456", "was lang ziek", "j@example.org",
+                  "+31612345678", "0031612345678", "+31 6 12345678", "+31 492 123456", "06 1234 5678",
+                  "0612345678", "tel. bekend"]:
             self.assertTrue(self.hits(t), t)
 
     def test_does_not_flag_organisation_facts(self):
         for t in ["12-05-1987", "1987-05-12", "14-03-1923", "1985 - 1990", "overleden 1923",
-                  "opening van het ziekenhuis", "koning 1883-84, 1894-95", "jonge deken 2011-2016"]:
+                  "opening van het ziekenhuis", "koning 1883-84, 1894-95", "jonge deken 2011-2016",
+                  "06-12-2019 14:00", "1883-1884", "media 676-730"]:
             self.assertEqual(self.hits(t), [], t)
 
-    def test_person_template_comment_is_not_scanned(self):
+    def test_person_template_passes_the_full_scan(self):
         tpl = (TOOLS.parent.parent / "templates" / "person.template.md")
         if not tpl.is_file():
             self.skipTest("templates not installed beside the tools")
-        text = re.sub(r"<!--.*?-->", "", tpl.read_text(), flags=re.S)
-        self.assertEqual(self.hits(text), [])
+        self.assertEqual(self.hits(tpl.read_text()), [])
 
+
+class LintEndToEnd(unittest.TestCase):
+    """Runs archive-lint.py itself against a throwaway vault."""
+
+    def setUp(self):
+        if not (TOOLS / "vault_lib.py").is_file():
+            self.skipTest("vault_lib.py not beside the tools (run from an installed repo)")
+        self.root = Path(tempfile.mkdtemp())
+        tools = self.root / "aiOS" / "tools" / "vault"
+        tools.mkdir(parents=True)
+        for f in ("archive-lint.py", "vault_lib.py"):
+            (tools / f).write_text((TOOLS / f).read_text())
+        (self.root / "aiOS" / "aios.config.json").write_text('{"vaultDir": "docs", "vaultAtRepoRoot": false}')
+        self.vault = self.root / "docs" / "vault" / "atlas"
+        (self.vault / "people" / "sub").mkdir(parents=True)
+        (self.vault / "collections").mkdir(parents=True)
+
+    def lint(self):
+        p = subprocess.run([sys.executable, str(self.root / "aiOS/tools/vault/archive-lint.py")],
+                           capture_output=True, text=True, cwd=self.root)
+        return p.returncode, p.stdout + p.stderr
+
+    def person(self, rel, body, front=""):
+        (self.vault / "people" / rel).write_text(f'---\nup: ["[[people]]"]\n{front}---\n\n# X\n\n{body}\n')
+
+    def test_clean_vault_passes(self):
+        self.person("wetzer_cornelis.md", "Koning 1883-84 en 1894-95.")
+        (self.vault / "collections" / "collectie_x.md").write_text('---\nkind: "photos"\n---\n# X\n')
+        rc, out = self.lint()
+        self.assertEqual(rc, 0, out)
+
+    def test_data_in_a_comment_is_flagged(self):
+        self.person("a_b.md", "<!-- geboren 3 maart 1950, tel +31612345678 -->")
+        rc, out = self.lint()
+        self.assertEqual(rc, 1, out)
+        self.assertIn("PERSON-DATA", out)
+
+    def test_frontmatter_and_subfolders_are_scanned(self):
+        self.person("sub/c_d.md", "Lid.", front="note: woont aan de Markt\n")
+        rc, out = self.lint()
+        self.assertIn("sub/c_d.md", out)
+
+    def test_collection_without_kind_is_flagged(self):
+        (self.vault / "collections" / "collectie_y.md").write_text("---\nup: []\n---\n# Y\n")
+        rc, out = self.lint()
+        self.assertIn("COLL-KIND", out)
 
 if __name__ == "__main__":
     unittest.main()

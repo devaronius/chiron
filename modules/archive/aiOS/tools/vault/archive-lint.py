@@ -31,9 +31,11 @@ FORBIDDEN = [
     (r"\bgeboren\b|\bgeboorte\w*|\bgeb\.\s*\d|\bborn\b|\bbirth(day|date)?\b|\bdate of birth\b", "birth date", re.I),
     (r"\b(woont|woonachtig|woonadres|adres|address|lives at)\b", "address", re.I),
     (r"\b(ziek|ziekte|ziekten|ziekbed|kanker|cancer|illness|disease|diagnos\w*|surgery|operatie|gezondheid|health)\b", "health", re.I),
-    (r"\b(telefoon\w*|tel\.|phone|e-?mail)\b|[\w.+-]+@[\w-]+\.[\w.]+|(?<![\d-])(?:\+31|0031|06)[\s-]?\d{8}(?![\d-])|(?<![\d-])0\d{2,3}[\s-]\d{6,7}(?![\d-])", "contact", re.I),
+    (r"\b(telefoon\w*|phone|e-?mail)\b|\btel\.|[\w.+-]+@[\w-]+\.[\w.]+"
+     r"|(?:\+|\b00)31[\s-]?(?:\(0\))?\d(?:\s?\d){8}(?!\d)"          # +31 6 12345678, 0031612345678
+     r"|(?<![\d-])06[\s-]?\d{2}\s?\d{2}\s?\d{2}\s?\d{2}(?![\d-])"    # 06-12345678, 06 1234 5678
+     r"|(?<![\d-])0\d{2,3}[\s-]\d{6,7}(?![\d-])|(?<![\d-])0\d{9}(?![\d-])", "contact", re.I),
 ]
-COMMENT = re.compile(r"<!--.*?-->", re.S)
 
 
 def split(text):
@@ -79,10 +81,10 @@ def main():
             fm, body = split(p.read_text(encoding="utf-8"))
             rel = p.relative_to(V.SOURCE_DIR).as_posix()
             if not re.fullmatch(r"[a-z0-9]+(_[a-z0-9]+)*\.md", p.name):
-                out.append(f"[PERSON-NAME] {rel}")
+                out.append(f"[PERSON-NAME] {rel}: lastname_firstname in lowercase a-z, 0-9 and _ (write é as e)")
             if '"[[people]]"' not in fm:
                 out.append(f"[PERSON-UP] {rel}")
-            text = COMMENT.sub("", fm + "\n" + body)
+            text = fm + "\n" + body          # the whole note: data in a comment is still published
             for rx, what, fl in FORBIDDEN:
                 m = re.search(rx, text, fl)
                 if m:
