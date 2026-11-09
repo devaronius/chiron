@@ -588,7 +588,7 @@ def apply_plan(target: Path, vault_prefix: str, tokens: dict, briefing: str,
         "vaultRoot": vault_prefix.rstrip("/") or ".",
         "vaultAtRepoRoot": vault_prefix == "",
         "tokens": tokens,
-        "modules": modules_of(tokens),
+        "modules": [m for m in tokens.get("MODULES_RECORDED", tokens.get("MODULES", "")).split(",") if m],
         "files": files,
     }
 
@@ -745,8 +745,10 @@ def main() -> int:
     if gone:
         print(f"⚠ module(s) recorded in the manifest but no longer shipped by chiron: {', '.join(gone)}; "
               "their files are left in place and are no longer managed", file=sys.stderr)
-        modules = [m for m in modules if m in known]
-    tokens["MODULES"] = ",".join(modules)
+    # The manifest keeps the repo's choice, gone modules included, so it survives until chiron
+    # ships the module again or a human edits the manifest; only shipped ones are installed.
+    tokens["MODULES_RECORDED"] = ",".join(modules)
+    tokens["MODULES"] = ",".join(m for m in modules if m in known)
 
     mapping = {}
     for spec in args.map:
