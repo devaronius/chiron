@@ -98,6 +98,15 @@ python3 ~/.chiron/tools/chiron-install.py --target "$REPO" --apply \
   --project-name "…" --project-domain "…" --roles "Dev,QA"        # install only
 ```
 
+**Optional modules** extend the folder set for vaults that need more than the IT-shaped
+default. Ask during the interview whether the project documents an archive (collections of
+objects, photos or documents, and the people named in them); if so, add `--module archive`:
+it scaffolds `atlas/collections/` and `atlas/people/`, ships the collection and person
+templates, `register-import.py` (merge a delivered spreadsheet into a collection note) and
+`archive-lint.py`, and adds the module's section to the vault map. The choice is stored in
+the manifest, so upgrades keep it; `--module` can also be passed later to opt in on an
+existing install. List what exists with `chiron-install.py --help`.
+
 Use `--map SRC=DEST` when a consumer has renamed something chiron ships — e.g.
 `--map skills/knowledge/vault-wiki-sync=.claude/skills/cca-wiki-sync`. SRC is the payload path in
 the chiron checkout, category folder included. The rename is recorded in the

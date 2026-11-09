@@ -68,7 +68,7 @@ def payload_paths() -> list[str]:
     Reuses the installer's own walk so the two can never disagree about what ships.
     """
     out = []
-    for name in ("aiOS", "seeds", "hooks"):
+    for name in ("aiOS", "seeds", "hooks", "modules"):
         d = CHIRON_ROOT / name
         if d.is_dir():
             out += [p.relative_to(CHIRON_ROOT).as_posix() for p in _installer.walk(d)]
