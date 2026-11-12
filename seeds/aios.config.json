@@ -17,8 +17,13 @@
   },
   "agents": {
     "inspector": {
+      "tracker": "",
       "scripts": [],
-      "buildCommands": []
+      "buildCommands": [],
+      "testAffecting": [],
+      "releaseTargets": [],
+      "releaseSources": [],
+      "bodyCheck": ""
     },
     "researcher": {
       "scripts": [],

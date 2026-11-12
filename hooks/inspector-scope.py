@@ -114,10 +114,10 @@ GIT_WORKTREE_OK = {'add', 'list', 'remove', 'prune'}
 # `python3` is allowed ONLY as a launcher for a named script — never `-c`, never a
 # heredoc, never a module. Two kinds are named.
 #
-# The project's pull-request client, from `agents.inspector.scripts`. Its verb list is
-# what keeps the sign-off with the human — the framework ships no such client, because
-# a PR lives on a tracker chiron knows nothing about. With none configured, mode 2
-# (review a pull request) is simply unavailable and the runbook says so.
+# The project's pull-request client, from `agents.inspector.scripts` — chiron's own
+# `aiOS/tools/inspector/pr.py`, or one the project wrote. Its verb list is what keeps the
+# sign-off with the human. With none configured, mode 2 (review a pull request) is
+# simply unavailable and the runbook says so.
 SCRIPTS = tuple(_AGENTS.get('scripts') or ())
 SCRIPT_RE = (re.compile(r'^python3?\s+\S*(?:' +
                         '|'.join(re.escape(s) for s in SCRIPTS) + r')\b')

@@ -11,6 +11,19 @@ unit** — `VERSION` covers everything under `aiOS/`, `seeds/`, `skills/` and `h
 
 ### Added
 
+- **The inspector's pull-request client** (#9): `aiOS/tools/inspector/pr.py` with the
+  verbs `show`, `story`, `diff`, `tree`, `body`, `policy` and `sync`, on a tracker-neutral
+  core (`client/core.py`: finding keys, rendering, the release gate, the idempotent sync
+  plan, the template-driven body check) and two adapters that only fetch and post —
+  `client/github.py` through `gh`, and `client/ado.py` through the Azure DevOps REST API.
+  Every adapter ships; `agents.inspector.tracker` picks one, and `scripts` names `pr.py`
+  either way. New `agents.inspector` keys: `tracker`, `testAffecting`, `releaseTargets`,
+  `releaseSources`, `bodyCheck`. The ADO adapter reads `ado.org`, `ado.project`,
+  `ado.repoName` (and optional `ado.repoId`), and a token from `SYSTEM_ACCESSTOKEN`,
+  `AZURE_DEVOPS_EXT_PAT` or the macOS Keychain (`ado-pat`). Acceptance criteria now read
+  numbered items and items wrapped onto a second line. Built in GCMS (devaronius/gcms#206)
+  and ported from MobileCarrier's ADO client.
+
 - **Optional modules** (`modules/<name>/`, `--module <name>`, repeatable). A module mirrors
   the payload layout (`aiOS/`, `seeds/`) and declares extra scaffold directories in
   `module.json`. The choice is stored in the manifest (`modules`), so upgrades keep it;

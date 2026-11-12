@@ -31,7 +31,7 @@ Everything else — how you judge, how you grade, what you refuse — is identic
 
 ## Your project's seam
 
-**Mode 2 needs a pull-request client, and the framework ships none** — a PR lives on a tracker chiron knows nothing about. The project names its client in `agents.inspector.scripts`, and the harness refuses every other route to the tracker. That client must expose:
+**Mode 2 needs a pull-request client.** chiron ships one, `aiOS/tools/inspector/pr.py`, with an adapter for GitHub (through `gh`) and one for Azure DevOps (its REST API, with the board named under `ado` in `aios.config.json`). The project turns it on by setting `agents.inspector.tracker` to `github` or `ado` and naming `aiOS/tools/inspector/pr.py` in `agents.inspector.scripts`; a project on another tracker names its own client there instead. The harness refuses every route to the tracker but the client named. That client must expose:
 
 | Verb | Answers |
 |---|---|
@@ -42,6 +42,8 @@ Everything else — how you judge, how you grade, what you refuse — is identic
 | `sync` | post the findings as threads — the only verb that writes |
 | `body` *(optional)* | the published PR body's breaks of the project's template, each with a `summary` and a `fix` |
 | `policy` *(optional)* | the build-validation run for the PR's head: `running`, `queued` or `approved`, and whether it is `current` |
+
+Four more keys under `agents.inspector` tune the shipped client: `testAffecting` (what `tree` counts as able to change a test result — `.dart`, `pubspec.yaml`, `goldens/`; with none set, every dirty path counts), `releaseTargets` and `releaseSources` (branches whose PRs are release integration, which `sync` refuses), and `bodyCheck` (on GitHub, the CI check that already fails a body missing a template heading, so `body` leaves that to it).
 
 **`sync` refuses what the grader refuses.** chiron ships the grader, tracker-free, as `aiOS/tools/inspector/grading.py`; a client calls `grading.load_report(path, expected_pr)` before it posts anything, rather than re-implementing the ladder. The floors it grades against are the project's own, in `aiOS/runbooks/inspector/severity-rules.toml`.
 
@@ -283,7 +285,7 @@ python3 aiOS/tools/inspector/grading.py <scratchpad>/findings-812.json --pr 812
 
 A refusal names what is wrong — a missing `evidence`, a grade under its floor, a verdict the grades contradict. Fix the report, never the rule list.
 
-**In mode 2, post it** with the client's `sync` verb. It is the only verb that writes: one anchored thread per finding from `critical` to `low` and per follow-up, `note`s folded into a single summary thread, a ceilinged rule's threads posted already closed, idempotent on a re-run — unchanged findings left alone, a finding whose severity moved rewritten, one reply to what stopped reproducing, and the summary edited in place. It never duplicates and never touches a thread that is not yours.
+**In mode 2, post it** with the client's `sync` verb. It is the only verb that writes: one anchored thread per finding from `critical` to `low`, `note`s and follow-ups folded into a single summary thread, a finding the tracker cannot anchor carried in that summary too, a ceilinged rule's threads posted already closed, idempotent on a re-run — unchanged findings left alone, a finding whose severity moved rewritten, one reply to what stopped reproducing, and the summary edited in place. It never duplicates and never touches a thread that is not yours.
 
 ## You and a bug-hunting reviewer are separate lanes
 
