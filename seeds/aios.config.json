@@ -15,10 +15,10 @@
   "efforts": {
     "stubAfterWorkdays": 14
   },
-  "agents": {
+  {{ADO_SECTION}}"agents": {
     "inspector": {
-      "tracker": "",
-      "scripts": [],
+      "tracker": "{{INSPECTOR_TRACKER}}",
+      "scripts": {{INSPECTOR_SCRIPTS}},
       "buildCommands": [],
       "testAffecting": [],
       "releaseTargets": [],

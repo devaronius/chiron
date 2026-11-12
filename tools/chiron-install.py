@@ -160,6 +160,25 @@ def available_modules() -> dict:
     return out
 
 
+TRACKERS = ("github", "ado")
+PR_CLIENT = "aiOS/tools/inspector/pr.py"
+
+
+def inspector_tokens(tracker: str, ado: dict) -> dict:
+    """The seeded config's inspector tokens. The raw answers are kept so an upgrade
+    re-renders the same seed; the rendered ones are what `aios.config.json` carries."""
+    section = ""
+    if tracker == "ado":
+        body = json.dumps({"org": ado["org"], "project": ado["project"], "repoName": ado["repo"]})
+        section = f'"ado": {body},\n  '
+    return {
+        "INSPECTOR_TRACKER": tracker,
+        "ADO_ORG": ado["org"], "ADO_PROJECT": ado["project"], "ADO_REPO": ado["repo"],
+        "INSPECTOR_SCRIPTS": json.dumps([PR_CLIENT] if tracker else []),
+        "ADO_SECTION": section,
+    }
+
+
 def modules_of(tokens: dict) -> list[str]:
     return [m for m in tokens.get("MODULES", "").split(",") if m]
 
@@ -672,6 +691,12 @@ def main() -> int:
     ap.add_argument("--module", action="append", default=[], metavar="NAME",
                     help="opt into an optional module (repeatable); kept on upgrade. "
                          "Available: " + ", ".join(available_modules()))
+    ap.add_argument("--tracker", choices=TRACKERS, default=None,
+                    help="where pull requests live; turns on the inspector's PR client "
+                         "(github: through `gh`; ado: needs the three --ado-* flags)")
+    ap.add_argument("--ado-org", default=None, help="Azure DevOps organisation (--tracker ado)")
+    ap.add_argument("--ado-project", default=None, help="Azure DevOps project (--tracker ado)")
+    ap.add_argument("--ado-repo", default=None, help="Azure DevOps repository name (--tracker ado)")
     ap.add_argument("--map", action="append", default=[], metavar="SRC=DEST",
                     help="install a payload path to a non-default destination")
     g = ap.add_mutually_exclusive_group(required=True)
@@ -733,6 +758,13 @@ def main() -> int:
         "VAULT_AT_REPO_ROOT": "true" if vault_prefix == "" else "false",
         "date": str(date.today()),
     }
+    tracker = args.tracker or stored.get("INSPECTOR_TRACKER", "")
+    ado = {key: getattr(args, f"ado_{key}") or stored.get(f"ADO_{key.upper()}", "")
+           for key in ("org", "project", "repo")}
+    if tracker == "ado" and not all(ado.values()):
+        print("✗ --tracker ado needs --ado-org, --ado-project and --ado-repo", file=sys.stderr)
+        return 2
+    tokens.update(inspector_tokens(tracker, ado))
 
     known = available_modules()
     unknown = [m for m in args.module if m not in known]

@@ -443,5 +443,34 @@ grep -q "archive-lint.py" <<<"$(sect "$out" RETIRE "")" && bad "module files are
 inst --target "$T10" --plan --module nope >/dev/null 2>&1
 check "an unknown module is refused" "$?" "2"
 
+# ── 12. the inspector's PR client ────────────────────────────
+head1 "12. --tracker — the inspector's PR client, chosen at install"
+cfg () { python3 -c "import json;c=json.load(open('$1/aiOS/aios.config.json'));print(repr(($2)))"; }
+check "no tracker by default: no client, no ado section" \
+  "$(cfg "$T" "c['agents']['inspector']['tracker'], c['agents']['inspector']['scripts'], 'ado' in c")" "('', [], False)"
+T13=$(new_repo tracker-github)
+inst --target "$T13" --apply --project-name "Hub" --tracker github >/dev/null
+check "github: tracker set and pr.py named" \
+  "$(cfg "$T13" "c['agents']['inspector']['tracker'], c['agents']['inspector']['scripts']")" \
+  "('github', ['aiOS/tools/inspector/pr.py'])"
+[ -f "$T13/aiOS/tools/inspector/client/github.py" ] && ok "the client ships" || bad "the client ships"
+T14=$(new_repo tracker-ado)
+inst --target "$T14" --apply --project-name "Board" --tracker ado >/dev/null 2>&1
+check "ado without its board is refused" "$?" "2"
+inst --target "$T14" --apply --project-name "Board" --tracker ado \
+  --ado-org acme --ado-project "Cargo App" --ado-repo mobile >/dev/null
+check "ado: the board is written under ado" \
+  "$(cfg "$T14" "c['agents']['inspector']['tracker'], c['ado']")" \
+  "('ado', {'org': 'acme', 'project': 'Cargo App', 'repoName': 'mobile'})"
+out=$(inst --target "$T14" --plan)
+check "a re-run keeps the tracker without the flags" \
+  "$(sect "$out" REVIEW "aios.config.json")$(sect "$out" CONFLICT "aios.config.json")" "00"
+# No token reachable, so the run stops before any request leaves the machine.
+out=$( cd "$T14" && env -u SYSTEM_ACCESSTOKEN AZURE_DEVOPS_EXT_PAT= USER=chiron-selftest-nobody \
+    python3 aiOS/tools/inspector/pr.py show --pr 1 2>&1 )
+grep -q "no Azure DevOps token" <<<"$out" \
+  && ok "pr.py loads the installed config and reaches the ado adapter" \
+  || bad "pr.py loads the installed config and reaches the ado adapter"
+
 printf '\n\033[1mResult:\033[0m %d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ] || exit 1
