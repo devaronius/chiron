@@ -177,18 +177,53 @@ than by their own good intentions: an allowlist of command heads, writes confine
 note or a scratchpad, and no route to a tracker except the client the project names in
 `agents.*.scripts`.
 
-For the inspector that client ships too: `aiOS/tools/inspector/pr.py`, a tracker-neutral
-core with a GitHub adapter (through `gh`) and an Azure DevOps one (REST, configured under
-`ado`). Set `agents.inspector.tracker` to `github` or `ado` and add `pr.py` to
-`agents.inspector.scripts`; on any other tracker, name your own client there.
-
-What it does ship is the inspector's **grader**, `aiOS/tools/inspector/grading.py`. Every
+The inspector also ships its **grader**, `aiOS/tools/inspector/grading.py`. Every
 finding sits on a five-level ladder — `critical` · `high` · `medium` · `low` · `note` — and
 names a rule from `aiOS/runbooks/inspector/severity-rules.toml`, whose level is a floor.
 The grader refuses a `critical` finding with no reproduced evidence, a grade under its
 rule's floor, and a recommendation the grades contradict (medium or above means *Waiting for
 author*). The inspector runs it on its own report in either mode, and your client calls it
 before posting. The rule file is seeded: the floors are your team's call.
+
+### The inspector's pull-request client
+
+Reviewing a PR (the inspector's mode 2) goes through `aiOS/tools/inspector/pr.py`: the verbs
+`show`, `story`, `diff`, `tree`, `body`, `policy` and `sync`, on a tracker-neutral core with
+one adapter per tracker. **GitHub** goes through `gh`, so it posts as whoever `gh` is logged
+in as. **Azure DevOps** goes through its REST API, with a token from `SYSTEM_ACCESSTOKEN`
+(a pipeline), `AZURE_DEVOPS_EXT_PAT`, or the macOS Keychain (service `ado-pat`, account
+`$USER`). No verb votes or moves a ticket, and `sync`, the only one that writes, posts
+nothing the grader refuses.
+
+Choose the tracker when you install, and the interview asks:
+
+```bash
+python3 ~/.chiron/tools/chiron-install.py --target . --apply --tracker github
+python3 ~/.chiron/tools/chiron-install.py --target . --apply --tracker ado \
+  --ado-org acme --ado-project "Cargo App" --ado-repo mobile
+```
+
+The choice is kept in the manifest, so upgrades re-render the same config. On an existing
+install, `aios.config.json` is already yours, so set the keys below by hand. With no
+tracker, mode 2 is unavailable. On another tracker, name your own client in `scripts`.
+
+Every setting lives in `aiOS/aios.config.json`:
+
+| Key | What it does | Default |
+|---|---|---|
+| `agents.inspector.tracker` | `github` or `ado`: which adapter `pr.py` loads | `""` (no client) |
+| `agents.inspector.scripts` | the client the scope hook lets the inspector run; `["aiOS/tools/inspector/pr.py"]` | `[]` |
+| `agents.inspector.buildCommands` | the project's toolchain the inspector may run (`flutter`, `npm`, …) | `[]` |
+| `agents.inspector.testAffecting` | what `tree` counts as able to change a test result: an entry ending in `/` matches a directory, any other a path suffix (`.dart`, `pubspec.yaml`, `goldens/`) | `[]` (every dirty path counts) |
+| `agents.inspector.releaseTargets` | PRs into these branches are release integration, which `sync` refuses without `--force` | `[]` (nothing gated) |
+| `agents.inspector.releaseSources` | PRs out of these branches are release integration too | `[]` |
+| `agents.inspector.bodyCheck` | GitHub only: the CI check that already fails a body missing a template heading, so `body` leaves that to it | `""` |
+| `ado.org`, `ado.project`, `ado.repoName` | the Azure DevOps board (`--ado-org`, `--ado-project`, `--ado-repo`) | none; required for `ado` |
+| `ado.repoId` | optional; the API uses it in place of the name | none |
+
+`body` checks the PR against the repo's own template: `.github/PULL_REQUEST_TEMPLATE.md`
+on GitHub, and `pull_request_template.md` in `.azuredevops/`, `.vsts/`, `docs/` or the
+repo root on Azure DevOps.
 
 ## Upgrading without losing your work
 

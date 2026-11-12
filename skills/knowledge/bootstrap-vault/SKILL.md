@@ -74,7 +74,8 @@ read their answers from the existing manifest.
 2. **Domain** — 2–3 sentences on what the project *is* and does. Seeds the briefing's "What this is".
 3. **Roles the agent works with** — e.g. "Dev, QA, PO", or "just me (solo)". If solo, the Roles section is omitted entirely.
 4. **Where the vault lives** — `docs/` (recommended when the repo also holds code — it keeps the vault clearly separate) or the **repo root** (for a notes-only repo, where the repo *is* the Obsidian vault). Root mode passes `--at-repo-root`, which also writes a single combined `CLAUDE.md` instead of two.
-5. *(mention only)* The briefing note is `project-brief.md` by default. Offer to name it after the project instead — `--briefing-note acme` gives `acme.md`, which reads better as a `[[wikilink]]` — and the choice is recorded so upgrades follow it.
+5. **Where pull requests live** — GitHub, Azure DevOps, or neither. It turns on the inspector's PR client: `--tracker github`, or `--tracker ado --ado-org … --ado-project … --ado-repo …` (the organisation, project and repository name from the repo's `dev.azure.com/<org>/<project>/_git/<repo>` URL). Recommend the one the repo's `origin` points at. For neither, pass nothing; the inspector then reviews session code only. Mention that the finer settings (`testAffecting`, `releaseTargets`, …) are in the README table.
+6. *(mention only)* The briefing note is `project-brief.md` by default. Offer to name it after the project instead — `--briefing-note acme` gives `acme.md`, which reads better as a `[[wikilink]]` — and the choice is recorded so upgrades follow it.
 
 ## Step 4 — Show the plan, then apply
 
@@ -95,7 +96,8 @@ Then apply, passing the interview answers on install:
 
 ```bash
 python3 ~/.chiron/tools/chiron-install.py --target "$REPO" --apply \
-  --project-name "…" --project-domain "…" --roles "Dev,QA"        # install only
+  --project-name "…" --project-domain "…" --roles "Dev,QA" \
+  --tracker github                                                  # install only
 ```
 
 **Optional modules** extend the folder set for vaults that need more than the IT-shaped

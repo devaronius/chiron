@@ -23,6 +23,11 @@ unit** — `VERSION` covers everything under `aiOS/`, `seeds/`, `skills/` and `h
   `AZURE_DEVOPS_EXT_PAT` or the macOS Keychain (`ado-pat`). Acceptance criteria now read
   numbered items and items wrapped onto a second line. Built in GCMS (devaronius/gcms#206)
   and ported from MobileCarrier's ADO client.
+- **`--tracker github|ado`** on `chiron-install.py` (with `--ado-org`, `--ado-project`,
+  `--ado-repo` for `ado`) turns the client on at install: the seeded `aios.config.json` gets
+  the tracker, `pr.py` in `scripts`, and the `ado` section. Kept in the manifest, so upgrades
+  re-render the same config. `bootstrap-vault`'s interview asks for it, and the README lists
+  every inspector setting.
 
 - **Optional modules** (`modules/<name>/`, `--module <name>`, repeatable). A module mirrors
   the payload layout (`aiOS/`, `seeds/`) and declares extra scaffold directories in
