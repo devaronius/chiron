@@ -175,7 +175,12 @@ trusting that a change landed cleanly. They touch no network and no tracker.
 thin `.claude/agents/` adapter. The last two are bounded by `PreToolUse` scope hooks rather
 than by their own good intentions: an allowlist of command heads, writes confined to one
 note or a scratchpad, and no route to a tracker except the client the project names in
-`agents.*.scripts`. chiron ships no such client — that part is yours.
+`agents.*.scripts`.
+
+For the inspector that client ships too: `aiOS/tools/inspector/pr.py`, a tracker-neutral
+core with a GitHub adapter (through `gh`) and an Azure DevOps one (REST, configured under
+`ado`). Set `agents.inspector.tracker` to `github` or `ado` and add `pr.py` to
+`agents.inspector.scripts`; on any other tracker, name your own client there.
 
 What it does ship is the inspector's **grader**, `aiOS/tools/inspector/grading.py`. Every
 finding sits on a five-level ladder — `critical` · `high` · `medium` · `low` · `note` — and
