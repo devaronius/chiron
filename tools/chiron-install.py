@@ -64,6 +64,7 @@ import hashlib
 import json
 import re
 import shutil
+import subprocess
 import sys
 from datetime import date
 from pathlib import Path
@@ -162,6 +163,29 @@ def available_modules() -> dict:
 
 TRACKERS = ("github", "ado")
 PR_CLIENT = "aiOS/tools/inspector/pr.py"
+
+
+def tracker_hint(target: Path) -> str:
+    """The `--tracker` flags the repo's `origin` suggests, or "" when it suggests none.
+
+    Without a tracker the inspector's PR mode is off, and the only way to turn it on
+    afterwards is to hand-edit a seeded config the installer never rewrites. So a run
+    that would install with none says what `origin` points at — a hint, never a default:
+    a repo can live on GitHub and still want no PR reviews.
+    """
+    try:
+        url = subprocess.run(["git", "-C", str(target), "remote", "get-url", "origin"],
+                             capture_output=True, text=True, timeout=10).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    if "github.com" in url:
+        return "--tracker github"
+    m = (re.search(r"dev\.azure\.com[:/](?:v3/)?([^/]+)/([^/]+)/(?:_git/)?([^/]+?)(?:\.git)?$", url)
+         or re.search(r"([^/.]+)\.visualstudio\.com/(?:DefaultCollection/)?([^/]+)/_git/([^/]+?)(?:\.git)?$", url))
+    if m:
+        org, project, repo = m.groups()
+        return f"--tracker ado --ado-org {org} --ado-project {project} --ado-repo {repo}"
+    return ""
 
 
 def inspector_tokens(tracker: str, ado: dict) -> dict:
@@ -330,6 +354,28 @@ def content_for(item: Item, tokens: dict) -> bytes:
     return raw
 
 
+EXEC_BITS = 0o111
+
+
+def lost_exec(src: Path, dest: Path) -> bool:
+    """Whether `dest` is missing an executable bit its payload source carries.
+
+    `write_bytes` creates a file with the default mode, so before this check every
+    shipped script landed non-executable and `aiOS/tools/run-tests.sh` failed with
+    "permission denied". Only the bits the source has count: a consumer who made a file
+    executable that chiron ships plain is not drift.
+    """
+    want = src.stat().st_mode & EXEC_BITS
+    return bool(want) and (dest.stat().st_mode & want) != want
+
+
+def copy_exec(src: Path, dest: Path) -> None:
+    """Add the source's executable bits to `dest`. Never removes one."""
+    want = src.stat().st_mode & EXEC_BITS
+    if want:
+        dest.chmod(dest.stat().st_mode | want)
+
+
 def build_plan(target: Path, vault_prefix: str, tokens: dict, briefing: str,
                manifest: dict, hashes: dict, mapping: dict) -> tuple[list[dict], list[dict]]:
     """Returns (actions, migrations_to_apply)."""
@@ -385,6 +431,10 @@ def build_plan(target: Path, vault_prefix: str, tokens: dict, briefing: str,
 
         have_sha = sha(dest.read_bytes())
         if have_sha == want_sha:
+            if lost_exec(item.abs_src, dest):               # right bytes, wrong mode
+                actions.append(dict(action="chmod", dest=dest_rel, src=item.src,
+                                    cls=item.cls, sha=have_sha,
+                                    note="executable upstream — content untouched"))
             continue                                        # already exactly what we ship
 
         if item.cls == "seeded":
@@ -565,12 +615,15 @@ def apply_plan(target: Path, vault_prefix: str, tokens: dict, briefing: str,
             data = content_for(item, tokens)
             dest.parent.mkdir(parents=True, exist_ok=True)
             dest.write_bytes(data)
+            copy_exec(item.abs_src, dest)
             entry = dict(sha256=sha(data), shipped=version(), cls=item.cls, src=item.src)
             if a["dest"] != item.dest:
                 # Record the local name so every later upgrade follows it rather than
                 # re-adding the file under the name chiron ships.
                 entry["installedAs"] = a["dest"]
             files[item.dest] = entry
+        elif a["action"] == "chmod":
+            copy_exec(by_src[a["src"]].abs_src, dest)
         elif a["action"] == "retire":
             dest.unlink(missing_ok=True)
             files.pop(a["dest"], None)
@@ -628,7 +681,7 @@ def detect_mode(target: Path, vault_prefix: str, manifest: dict) -> str:
 
 
 def report(mode: str, actions: list[dict], migrations: list[dict], applied: bool) -> int:
-    order = ["move", "blocked", "add", "update", "conflict", "review", "retire", "keep"]
+    order = ["move", "blocked", "add", "update", "chmod", "conflict", "review", "retire", "keep"]
     groups = {k: [a for a in actions if a["action"] == k] for k in order}
 
     verb = "Applied" if applied else "Plan"
@@ -654,6 +707,7 @@ def report(mode: str, actions: list[dict], migrations: list[dict], applied: bool
         "blocked": "BLOCKED   (old and new directory both hold files — not moved)",
         "add": "ADD       (missing here)",
         "update": "UPDATE    (pristine — safe to overwrite)",
+        "chmod": "CHMOD     (executable bit missing — mode only)",
         "conflict": "CONFLICT  (you edited it — left alone)",
         "review": "REVIEW    (seeded — yours; upstream differs)",
         "retire": "RETIRE    (deleted upstream, pristine here)",
@@ -804,8 +858,14 @@ def main() -> int:
                   [dict(a, action="conflict", note="present upstream, missing here")
                    for a in actions if a["action"] == "add"]
 
+    # Not on verify: a current install has already had this choice put to it once.
+    hint = tracker_hint(target) if not tracker and mode != "verify" else ""
+    hint_text = (f"⚠ no tracker chosen, so the inspector's PR mode stays off. origin suggests: "
+                 f"{hint}\n  Re-run with it to turn PR reviews on, or ignore this to keep "
+                 f"session-only reviews.") if hint else ""
+
     if args.json:
-        print(json.dumps({"chironVersion": version(), "mode": mode,
+        print(json.dumps({"chironVersion": version(), "mode": mode, "trackerHint": hint,
                           "vaultRoot": vault_prefix.rstrip("/") or ".",
                           "tokens": tokens, "migrations": migrations,
                           "actions": actions}, indent=2))
@@ -837,9 +897,14 @@ def main() -> int:
                 legacy.unlink(missing_ok=True)
         rc = report(mode, actions, migrations, applied=True)
         print(f"✓ manifest written: {mpath.relative_to(target)}")
+        if hint_text:
+            print(hint_text)
         return rc
 
-    return report(mode, actions, migrations, applied=False)
+    rc = report(mode, actions, migrations, applied=False)
+    if hint_text:
+        print(hint_text)
+    return rc
 
 
 if __name__ == "__main__":

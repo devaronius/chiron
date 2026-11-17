@@ -33,6 +33,21 @@ If the network is unavailable and `~/.chiron` already exists, say so and continu
 cached copy — naming the version you are working from. If it does not exist and you cannot
 clone, **stop**: there is no payload to install, and inventing one is worse than nothing.
 
+**Then check that these instructions are as new as the payload.** This skill reaches you through
+the plugin cache, which updates on its own schedule; `~/.chiron` was just pulled. When the
+two disagree, you are holding an older interview than the installer you are about to run —
+which is how a 3.0.0 skill once installed 3.0.1 without asking where pull requests live.
+Compare this file (its base directory is given above these instructions) with the payload's
+copy:
+
+```bash
+diff -q "<this skill's base directory>/SKILL.md" ~/.chiron/skills/knowledge/bootstrap-vault/SKILL.md
+```
+
+If they differ, **read `~/.chiron/skills/knowledge/bootstrap-vault/SKILL.md` now and follow
+it instead of this file**, from its Step 2. Tell the user the plugin is behind and suggest
+`claude plugin marketplace update chiron` followed by `claude plugin update chiron@chiron`.
+
 ## Step 2 — Detect the mode
 
 Run the plan. It tells you which of four situations you are in; do not guess from a
@@ -49,7 +64,7 @@ python3 ~/.chiron/tools/chiron-install.py --target "$REPO" --plan
 | **upgrade** | manifest older than chiron | migrations + three-way diff |
 | **verify** | manifest current | report drift; write nothing |
 
-Each file lands in one of six buckets, and a directory a migration renames in one of two more. Understand them before you show a plan:
+Each file lands in one of seven buckets, and a directory a migration renames in one of two more. Understand them before you show a plan:
 
 - **ADD** — missing here; will be written.
 - **UPDATE** — provably unmodified since it was shipped, so overwriting loses nothing.
@@ -57,6 +72,8 @@ Each file lands in one of six buckets, and a directory a migration renames in on
 - **REVIEW** — a `seeded` file (the briefing, the maps, `aios.config.json`, the wiki
   baseline). Written once at install, then yours forever; upstream has moved but the
   installer will not touch it. **This is where you come in** — see Step 6.
+- **CHMOD** — the right bytes, but an executable bit the payload carries is missing (every script an
+  older installer wrote landed this way). Only the mode changes.
 - **RETIRE** — dropped upstream and pristine here; will be deleted.
 - **KEEP** — dropped upstream but you modified it, so it stays.
 - **MOVE** — a directory renamed upstream (in 3.0.0, `ideaVerse/` → `vault/`); it moves whole,
@@ -82,6 +99,10 @@ read their answers from the existing manifest.
 **Never apply without showing the plan first.** Summarise it in prose — counts per bucket,
 and every CONFLICT, REVIEW, MOVE and BLOCKED named individually, since those are the ones
 with consequences. Then get confirmation.
+
+If the plan ends with **"⚠ no tracker chosen"**, the tracker question was skipped or answered
+*neither*. Put it to the user now with the suggested flags — after install the choice lives
+in a seeded config the installer never rewrites, so it is far cheaper to make here.
 
 Before applying anything to an existing vault, take a baseline so you can prove you did no
 harm:

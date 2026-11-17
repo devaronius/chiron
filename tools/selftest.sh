@@ -472,5 +472,52 @@ grep -q "no Azure DevOps token" <<<"$out" \
   && ok "pr.py loads the installed config and reaches the ado adapter" \
   || bad "pr.py loads the installed config and reaches the ado adapter"
 
+
+# ── 13. executable bits ───────────────────────────────────────
+head1 "13. executable bits — scripts land runnable, and a lost bit is repaired"
+T15=$(new_repo exec-bits)
+inst --target "$T15" --apply --project-name "Exec" >/dev/null
+[ -x "$T15/aiOS/tools/run-tests.sh" ] && ok "run-tests.sh is executable on install" \
+  || bad "run-tests.sh is executable on install"
+[ -x "$T15/.claude/hooks/open-items-lane.py" ] && ok "hooks keep their executable bit" \
+  || bad "hooks keep their executable bit"
+[ -x "$T15/aiOS/tools/vault/vault_lib.py" ] && bad "a plain source file is not made executable" \
+  || ok "a plain source file is not made executable"
+chmod -x "$T15/aiOS/tools/run-tests.sh"
+before=$(shasum "$T15/aiOS/tools/run-tests.sh" | cut -d' ' -f1)
+out=$(inst --target "$T15" --plan)
+check "a lost bit is planned as CHMOD" "$(sect "$out" CHMOD "run-tests.sh")" "1"
+check "and not as CONFLICT or UPDATE" \
+  "$(sect "$out" CONFLICT "run-tests.sh")$(sect "$out" UPDATE "run-tests.sh")" "00"
+inst --target "$T15" --apply >/dev/null
+[ -x "$T15/aiOS/tools/run-tests.sh" ] && ok "apply restores the bit" || bad "apply restores the bit"
+check "CHMOD leaves the bytes alone" "$(shasum "$T15/aiOS/tools/run-tests.sh" | cut -d' ' -f1)" "$before"
+out=$(inst --target "$T15" --plan)
+check "and the next plan is clean" "$(sect "$out" CHMOD "")" "0"
+chmod +x "$T15/aiOS/tools/vault/vault_lib.py"
+out=$(inst --target "$T15" --plan)
+check "a bit the consumer added is not drift" "$(sect "$out" CHMOD "vault_lib.py")" "0"
+
+# ── 14. tracker hint ──────────────────────────────────────────
+head1 "14. tracker hint — no --tracker on a repo with a known origin says so"
+T16=$(new_repo hint-github)
+git -C "$T16" remote add origin git@github.com:acme/shop.git
+out=$(inst --target "$T16" --plan)
+grep -q "no tracker chosen.*--tracker github" <<<"$out" \
+  && ok "github origin suggests --tracker github" || bad "github origin suggests --tracker github"
+out=$(inst --target "$T16" --plan --tracker github)
+grep -q "no tracker chosen" <<<"$out" && bad "silent once a tracker is given" \
+  || ok "silent once a tracker is given"
+T17=$(new_repo hint-ado)
+git -C "$T17" remote add origin https://acme@dev.azure.com/acme/Cargo/_git/mobile
+out=$(inst --target "$T17" --plan)
+grep -q -- "--tracker ado --ado-org acme --ado-project Cargo --ado-repo mobile" <<<"$out" \
+  && ok "ado origin suggests the full ado flags" || bad "ado origin suggests the full ado flags"
+T18=$(new_repo hint-none)
+out=$(inst --target "$T18" --plan)
+grep -q "no tracker chosen" <<<"$out" && bad "no origin, no hint" || ok "no origin, no hint"
+inst --target "$T16" --apply --project-name "Shop" >/dev/null
+out=$(inst --target "$T16" --plan)
+grep -q "no tracker chosen" <<<"$out" && bad "verify does not nag" || ok "verify does not nag"
 printf '\n\033[1mResult:\033[0m %d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ] || exit 1
