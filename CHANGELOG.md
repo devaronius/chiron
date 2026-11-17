@@ -69,7 +69,9 @@ unit** — `VERSION` covers everything under `aiOS/`, `seeds/`, `skills/` and `h
   and shell-quoted, from https, ssh and visualstudio.com remotes), so a missed interview
   question surfaces in the plan instead of in a hand-edited config. Once `aios.config.json`
   is seeded a re-run will not write it, so from then on the hint names the config keys to
-  set instead of the flag. `--json` carries the flags as `trackerHint`.
+  set instead of the flag. `--json` carries the flags as `trackerHint`, which case applies
+  as `trackerHintVia` (`flag` | `config`), and the keys as `trackerHintConfig`;
+  `bootstrap-vault` Step 4 follows the same split.
 
 ## [3.0.1] — 2026-11-07
 

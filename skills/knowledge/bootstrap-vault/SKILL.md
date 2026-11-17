@@ -101,8 +101,14 @@ and every CONFLICT, REVIEW, MOVE and BLOCKED named individually, since those are
 with consequences. Then get confirmation.
 
 If the plan ends with **"⚠ no tracker chosen"**, the tracker question was skipped or answered
-*neither*. Put it to the user now with the suggested flags — after install the choice lives
-in a seeded config the installer never rewrites, so it is far cheaper to make here.
+*neither*. Put it to the user now. What a yes means depends on whether `aiOS/aios.config.json`
+exists yet, and the warning's second line says which (`--json`: `trackerHintVia`):
+
+- **Install** (`flag`) — add the suggested flags to this `--apply`. Cheapest moment by far.
+- **Adopt / upgrade** (`config`) — the config is seeded, so the flags would only list it under
+  REVIEW and turn nothing on. Set the keys the warning names (`trackerHintConfig`) in
+  `aiOS/aios.config.json` yourself, then also pass the flags on the next `--apply` so the
+  manifest records the choice for later upgrades.
 
 Before applying anything to an existing vault, take a baseline so you can prove you did no
 harm:

@@ -550,6 +550,13 @@ check "visualstudio.com: the user name is not the org" \
 check "vs-ssh.visualstudio.com" \
   "$(hint_for vsssh 'acme@vs-ssh.visualstudio.com:v3/acme/Cargo/mobile')" \
   "--tracker ado --ado-org acme --ado-project Cargo --ado-repo mobile"
+d=$(new_repo hint-json); git -C "$d" remote add origin git@github.com:acme/shop.git
+check "--json says flag before install" \
+  "$(inst --target "$d" --plan --json | python3 -c "import json,sys;j=json.load(sys.stdin);print(j['trackerHintVia'],repr(j['trackerHintConfig']))")" "flag ''"
+inst --target "$d" --apply --project-name "Shop" >/dev/null
+rm "$d/aiOS/.chiron-install.json"                              # adopt: config exists, no manifest
+check "--json says config, with the keys, once the config is seeded" \
+  "$(inst --target "$d" --plan --json | python3 -c "import json,sys;j=json.load(sys.stdin);print(j['mode'],j['trackerHintVia'],'agents.inspector.tracker = \"github\"' in j['trackerHintConfig'])")" "adopt config True"
 check "an unknown host suggests nothing" "$(hint_for gitlab 'https://gitlab.com/a/b.git')" ""
 T18=$(new_repo hint-none)
 out=$(inst --target "$T18" --plan)

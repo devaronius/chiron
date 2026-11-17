@@ -914,14 +914,15 @@ def main() -> int:
     # Not on verify: a current install has already had this choice put to it once.
     found = tracker_hint(target) if not tracker and mode != "verify" else {}
     hint = tracker_flags(found)
+    # The flag only reaches a config this run is about to ADD; once one is seeded, an
+    # upgrade reports it under REVIEW and never writes it, so a re-run turns nothing on.
+    seeding = any(a["action"] == "add" and a["dest"] == "aiOS/aios.config.json"
+                  for a in actions)
+    via = "" if not found else ("flag" if seeding and not args.apply else "config")
     hint_text = ""
     if found:
-        # The flag only reaches a config this run is about to ADD; once one is seeded, an
-        # upgrade reports it under REVIEW and never writes it, so a re-run turns nothing on.
-        seeding = any(a["action"] == "add" and a["dest"] == "aiOS/aios.config.json"
-                      for a in actions)
         how = (f"Add {hint} to this run to turn PR reviews on"
-               if seeding and not args.apply else
+               if via == "flag" else
                f"aiOS/aios.config.json is seeded, so a re-run will not write it. Set "
                f"{tracker_config(found)} there to turn PR reviews on")
         hint_text = (f"⚠ no tracker chosen, so the inspector's PR mode stays off. origin "
@@ -929,6 +930,10 @@ def main() -> int:
 
     if args.json:
         print(json.dumps({"chironVersion": version(), "mode": mode, "trackerHint": hint,
+                          # "flag": pass trackerHint on this run. "config": the config is
+                          # already seeded, so set trackerHintConfig in it instead.
+                          "trackerHintVia": via,
+                          "trackerHintConfig": tracker_config(found) if via == "config" else "",
                           "vaultRoot": vault_prefix.rstrip("/") or ".",
                           "tokens": tokens, "migrations": migrations,
                           "actions": actions}, indent=2))
