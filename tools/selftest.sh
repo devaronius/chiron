@@ -557,6 +557,13 @@ inst --target "$d" --apply --project-name "Shop" >/dev/null
 rm "$d/aiOS/.chiron-install.json"                              # adopt: config exists, no manifest
 check "--json says config, with the keys, once the config is seeded" \
   "$(inst --target "$d" --plan --json | python3 -c "import json,sys;j=json.load(sys.stdin);print(j['mode'],j['trackerHintVia'],'agents.inspector.tracker = \"github\"' in j['trackerHintConfig'])")" "adopt config True"
+d=$(new_repo hint-adopt); git -C "$d" remote add origin git@github.com:acme/shop.git
+mkdir -p "$d/docs/vault/atlas" "$d/docs/vault/efforts"
+printf -- '---\ntitle: Note\n---\n\nA note.\n' > "$d/docs/vault/atlas/note.md"
+check "adopt with no aiOS/ yet is a flag case, not config" \
+  "$(inst --target "$d" --plan --json | python3 -c "import json,sys;j=json.load(sys.stdin);print(j['mode'],j['trackerHintVia'])")" "adopt flag"
+check "--apply --json is still a plan, so still flag" \
+  "$(inst --target "$d" --apply --json | python3 -c "import json,sys;print(json.load(sys.stdin)['trackerHintVia'])")" "flag"
 check "an unknown host suggests nothing" "$(hint_for gitlab 'https://gitlab.com/a/b.git')" ""
 T18=$(new_repo hint-none)
 out=$(inst --target "$T18" --plan)

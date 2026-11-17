@@ -918,7 +918,9 @@ def main() -> int:
     # upgrade reports it under REVIEW and never writes it, so a re-run turns nothing on.
     seeding = any(a["action"] == "add" and a["dest"] == "aiOS/aios.config.json"
                   for a in actions)
-    via = "" if not found else ("flag" if seeding and not args.apply else "config")
+    # --json returns before anything is applied, so `--apply --json` is still a plan.
+    applying = args.apply and not args.json
+    via = "" if not found else ("flag" if seeding and not applying else "config")
     hint_text = ""
     if found:
         how = (f"Add {hint} to this run to turn PR reviews on"
