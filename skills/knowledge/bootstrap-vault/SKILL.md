@@ -62,7 +62,7 @@ python3 ~/.chiron/tools/chiron-install.py --target "$REPO" --plan
 | **install** | no vault | interview (Step 3), then apply |
 | **adopt** | vault, no manifest | classify, apply the safe part, report the rest |
 | **upgrade** | manifest older than chiron | migrations + three-way diff |
-| **verify** | manifest current | report drift; write nothing |
+| **verify** | manifest current | report drift; apply only repairs that lose nothing (CHMOD, a due MOVE) |
 
 Each file lands in one of seven buckets, and a directory a migration renames in one of two more. Understand them before you show a plan:
 

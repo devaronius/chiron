@@ -497,6 +497,18 @@ check "and the next plan is clean" "$(sect "$out" CHMOD "")" "0"
 chmod +x "$T15/aiOS/tools/vault/vault_lib.py"
 out=$(inst --target "$T15" --plan)
 check "a bit the consumer added is not drift" "$(sect "$out" CHMOD "vault_lib.py")" "0"
+echo "# local edit" >> "$T15/aiOS/tools/wiki/wiki-sync.py"
+chmod -x "$T15/aiOS/tools/wiki/wiki-sync.py"
+out=$(inst --target "$T15" --plan)
+check "an edited script that lost its bit is CONFLICT and says so" \
+  "$(sect "$out" CONFLICT "wiki-sync.py.*not executable")" "1"
+# Git records only "executable or not"; group and other follow the consumer's umask.
+T15b=$(new_repo exec-umask)
+( umask 027 && inst --target "$T15b" --apply --project-name "Strict" >/dev/null )
+check "umask 027 installs scripts 750" \
+  "$(python3 -c "import os,sys;print(oct(os.stat(sys.argv[1]).st_mode&0o777))" "$T15b/aiOS/tools/run-tests.sh")" "0o750"
+out=$( umask 027 && inst --target "$T15b" --plan )
+check "and 750 is not drift" "$(sect "$out" CHMOD "")" "0"
 
 # ── 14. tracker hint ──────────────────────────────────────────
 head1 "14. tracker hint — no --tracker on a repo with a known origin says so"
@@ -513,6 +525,32 @@ git -C "$T17" remote add origin https://acme@dev.azure.com/acme/Cargo/_git/mobil
 out=$(inst --target "$T17" --plan)
 grep -q -- "--tracker ado --ado-org acme --ado-project Cargo --ado-repo mobile" <<<"$out" \
   && ok "ado origin suggests the full ado flags" || bad "ado origin suggests the full ado flags"
+T16b=$(new_repo hint-fresh)
+git -C "$T16b" remote add origin git@github.com:acme/shop.git
+out=$(inst --target "$T16b" --plan)
+grep -q "Add --tracker github to this run" <<<"$out" \
+  && ok "before install, the hint says to add the flag" || bad "before install, the hint says to add the flag"
+out=$(inst --target "$T16b" --apply --project-name "Shop")
+grep -q "seeded, so a re-run will not write it.*agents.inspector.tracker = \"github\"" <<<"$out" \
+  && ok "after install, the hint names the config keys, not a re-run" \
+  || bad "after install, the hint names the config keys, not a re-run"
+hint_for () {
+  local d; d=$(new_repo "hint-$1"); git -C "$d" remote add origin "$2"
+  inst --target "$d" --plan --json | python3 -c "import json,sys;print(json.load(sys.stdin)['trackerHint'])"
+}
+check "ssh dev.azure.com, encoded project" \
+  "$(hint_for ssh 'git@ssh.dev.azure.com:v3/acme/Cargo%20App/mobile')" \
+  "--tracker ado --ado-org acme --ado-project 'Cargo App' --ado-repo mobile"
+check "https dev.azure.com, encoded project is decoded and quoted" \
+  "$(hint_for enc 'https://acme@dev.azure.com/acme/My%20Project/_git/mobile')" \
+  "--tracker ado --ado-org acme --ado-project 'My Project' --ado-repo mobile"
+check "visualstudio.com: the user name is not the org" \
+  "$(hint_for vsts 'https://someone@acme.visualstudio.com/DefaultCollection/Cargo/_git/mobile.git')" \
+  "--tracker ado --ado-org acme --ado-project Cargo --ado-repo mobile"
+check "vs-ssh.visualstudio.com" \
+  "$(hint_for vsssh 'acme@vs-ssh.visualstudio.com:v3/acme/Cargo/mobile')" \
+  "--tracker ado --ado-org acme --ado-project Cargo --ado-repo mobile"
+check "an unknown host suggests nothing" "$(hint_for gitlab 'https://gitlab.com/a/b.git')" ""
 T18=$(new_repo hint-none)
 out=$(inst --target "$T18" --plan)
 grep -q "no tracker chosen" <<<"$out" && bad "no origin, no hint" || ok "no origin, no hint"

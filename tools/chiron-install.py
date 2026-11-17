@@ -12,7 +12,8 @@ Four modes, detected from the target rather than passed in:
                                  add what's missing, upgrade what is provably pristine,
                                  report what the user changed, then record a manifest
   upgrade   manifest older     → apply migrations, then the same three-way diff
-  verify    manifest current   → report drift only; never write
+  verify    manifest current   → report drift; --apply writes only repairs that lose
+                                 nothing (CHMOD, a due directory move, the manifest)
 
 The three-way decision is the whole point. For each file we know: what is on disk, what
 chiron ships now, and what chiron shipped when this vault was installed. Without that
@@ -63,9 +64,13 @@ import argparse
 import hashlib
 import json
 import re
+import os
+import shlex
 import shutil
+import stat
 import subprocess
 import sys
+from urllib.parse import unquote
 from datetime import date
 from pathlib import Path
 
@@ -165,27 +170,64 @@ TRACKERS = ("github", "ado")
 PR_CLIENT = "aiOS/tools/inspector/pr.py"
 
 
-def tracker_hint(target: Path) -> str:
-    """The `--tracker` flags the repo's `origin` suggests, or "" when it suggests none.
+# Azure DevOps remotes, most specific first. The org never contains `@`: in an https URL
+# whatever precedes `@` is the user name, not the org.
+ADO_REMOTES = (
+    r"(?:ssh\.dev\.azure\.com|vs-ssh\.visualstudio\.com):v3/([^/]+)/([^/]+)/([^/]+?)(?:\.git)?/?$",
+    r"dev\.azure\.com/([^/]+)/([^/]+)/_git/([^/]+?)(?:\.git)?/?$",
+    r"([^/.@:]+)\.visualstudio\.com/(?:DefaultCollection/)?([^/]+)/_git/([^/]+?)(?:\.git)?/?$",
+)
 
-    Without a tracker the inspector's PR mode is off, and the only way to turn it on
-    afterwards is to hand-edit a seeded config the installer never rewrites. So a run
-    that would install with none says what `origin` points at — a hint, never a default:
-    a repo can live on GitHub and still want no PR reviews.
+
+def tracker_from_remote(url: str) -> dict:
+    """What a remote URL says about the tracker: {} for none, else tracker and (ado) board.
+
+    The parts are percent-decoded — an https remote spells a project with a space as
+    `My%20Project`, and the ADO client encodes the name itself, so passing it on encoded
+    names a project that does not exist.
+    """
+    if "github.com" in url:
+        return {"tracker": "github"}
+    for pattern in ADO_REMOTES:
+        m = re.search(pattern, url)
+        if m:
+            org, project, repo = (unquote(g) for g in m.groups())
+            return {"tracker": "ado", "org": org, "project": project, "repo": repo}
+    return {}
+
+
+def tracker_flags(found: dict) -> str:
+    if found.get("tracker") == "ado":
+        return ("--tracker ado --ado-org " + shlex.quote(found["org"]) +
+                " --ado-project " + shlex.quote(found["project"]) +
+                " --ado-repo " + shlex.quote(found["repo"]))
+    return f"--tracker {found['tracker']}" if found else ""
+
+
+def tracker_config(found: dict) -> str:
+    """The `aios.config.json` keys that turn the tracker on, for a config already seeded."""
+    keys = (f'agents.inspector.tracker = "{found["tracker"]}", '
+            f'agents.inspector.scripts = ["{PR_CLIENT}"]')
+    if found.get("tracker") == "ado":
+        keys += ", " + json.dumps({"ado": {"org": found["org"], "project": found["project"],
+                                           "repoName": found["repo"]}})
+    return keys
+
+
+def tracker_hint(target: Path) -> dict:
+    """What the repo's `origin` suggests for `--tracker`, or {} when it suggests nothing.
+
+    Without a tracker the inspector's PR mode is off, and once `aios.config.json` is seeded
+    the installer never rewrites it — re-running with the flag only reports it under
+    REVIEW. So a run that would go ahead with none says what `origin` points at: a hint,
+    never a default, since a repo can live on GitHub and still want no PR reviews.
     """
     try:
         url = subprocess.run(["git", "-C", str(target), "remote", "get-url", "origin"],
                              capture_output=True, text=True, timeout=10).stdout.strip()
     except (OSError, subprocess.SubprocessError):
-        return ""
-    if "github.com" in url:
-        return "--tracker github"
-    m = (re.search(r"dev\.azure\.com[:/](?:v3/)?([^/]+)/([^/]+)/(?:_git/)?([^/]+?)(?:\.git)?$", url)
-         or re.search(r"([^/.]+)\.visualstudio\.com/(?:DefaultCollection/)?([^/]+)/_git/([^/]+?)(?:\.git)?$", url))
-    if m:
-        org, project, repo = m.groups()
-        return f"--tracker ado --ado-org {org} --ado-project {project} --ado-repo {repo}"
-    return ""
+        return {}
+    return tracker_from_remote(url)
 
 
 def inspector_tokens(tracker: str, ado: dict) -> dict:
@@ -358,22 +400,29 @@ EXEC_BITS = 0o111
 
 
 def lost_exec(src: Path, dest: Path) -> bool:
-    """Whether `dest` is missing an executable bit its payload source carries.
+    """Whether `dest` is not executable although its payload source is.
 
     `write_bytes` creates a file with the default mode, so before this check every
     shipped script landed non-executable and `aiOS/tools/run-tests.sh` failed with
-    "permission denied". Only the bits the source has count: a consumer who made a file
-    executable that chiron ships plain is not drift.
+    "permission denied". Git records only "executable or not", so the owner's bit is the
+    whole question: group and other follow the consumer's umask (0750 under umask 027 is
+    a correct install, not drift). A file chiron ships plain is never drift either.
     """
-    want = src.stat().st_mode & EXEC_BITS
-    return bool(want) and (dest.stat().st_mode & want) != want
+    return bool(src.stat().st_mode & stat.S_IXUSR) and not dest.stat().st_mode & stat.S_IXUSR
+
+
+def current_umask() -> int:
+    mask = os.umask(0)
+    os.umask(mask)
+    return mask
 
 
 def copy_exec(src: Path, dest: Path) -> None:
-    """Add the source's executable bits to `dest`. Never removes one."""
-    want = src.stat().st_mode & EXEC_BITS
-    if want:
-        dest.chmod(dest.stat().st_mode | want)
+    """Make `dest` executable when its source is, as far as the umask allows — the bits
+    a fresh `git checkout` of the same file would get. Never removes a bit."""
+    if src.stat().st_mode & stat.S_IXUSR:
+        add = (EXEC_BITS & ~current_umask()) | stat.S_IXUSR
+        dest.chmod(dest.stat().st_mode | add)
 
 
 def build_plan(target: Path, vault_prefix: str, tokens: dict, briefing: str,
@@ -452,6 +501,10 @@ def build_plan(target: Path, vault_prefix: str, tokens: dict, briefing: str,
             why = ("matches a previously shipped version"
                    if pristine else "matches no version chiron ever shipped")
 
+        if not pristine and lost_exec(item.abs_src, dest):
+            # Left alone like every conflict, but said: an edited script that will not run
+            # is a second, separate surprise.
+            why += "; also not executable (chmod u+x to fix)"
         actions.append(dict(
             action="update" if pristine else "conflict",
             dest=dest_rel, src=item.src, cls=item.cls,
@@ -859,10 +912,20 @@ def main() -> int:
                    for a in actions if a["action"] == "add"]
 
     # Not on verify: a current install has already had this choice put to it once.
-    hint = tracker_hint(target) if not tracker and mode != "verify" else ""
-    hint_text = (f"⚠ no tracker chosen, so the inspector's PR mode stays off. origin suggests: "
-                 f"{hint}\n  Re-run with it to turn PR reviews on, or ignore this to keep "
-                 f"session-only reviews.") if hint else ""
+    found = tracker_hint(target) if not tracker and mode != "verify" else {}
+    hint = tracker_flags(found)
+    hint_text = ""
+    if found:
+        # The flag only reaches a config this run is about to ADD; once one is seeded, an
+        # upgrade reports it under REVIEW and never writes it, so a re-run turns nothing on.
+        seeding = any(a["action"] == "add" and a["dest"] == "aiOS/aios.config.json"
+                      for a in actions)
+        how = (f"Add {hint} to this run to turn PR reviews on"
+               if seeding and not args.apply else
+               f"aiOS/aios.config.json is seeded, so a re-run will not write it. Set "
+               f"{tracker_config(found)} there to turn PR reviews on")
+        hint_text = (f"⚠ no tracker chosen, so the inspector's PR mode stays off. origin "
+                     f"suggests: {hint}\n  {how}, or ignore this to keep session-only reviews.")
 
     if args.json:
         print(json.dumps({"chironVersion": version(), "mode": mode, "trackerHint": hint,
