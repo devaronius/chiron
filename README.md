@@ -74,7 +74,7 @@ is in, rather than guessing from a directory listing.
 | "set up a vault here" | no vault | interviews you, shows a plan, applies it |
 | "set up a vault here" | a vault, but no chiron manifest | *adopts* it: classifies every file by hash, applies the safe part, reports the rest |
 | "upgrade the vault" | a manifest older than chiron | migrations, then the three-way diff below |
-| "has the vault drifted?" | a current manifest | reports drift and writes nothing |
+| "has the vault drifted?" | a current manifest | reports drift; `--apply` makes only repairs that lose nothing (a missing executable bit, a due directory move) |
 
 You always see the plan — ADD / UPDATE / CONFLICT / REVIEW / RETIRE / KEEP per file — before
 anything is written, and `--apply` never touches a CONFLICT or a REVIEW. Those are the two

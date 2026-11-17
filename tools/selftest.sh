@@ -472,5 +472,104 @@ grep -q "no Azure DevOps token" <<<"$out" \
   && ok "pr.py loads the installed config and reaches the ado adapter" \
   || bad "pr.py loads the installed config and reaches the ado adapter"
 
+
+# ── 13. executable bits ───────────────────────────────────────
+head1 "13. executable bits — scripts land runnable, and a lost bit is repaired"
+T15=$(new_repo exec-bits)
+inst --target "$T15" --apply --project-name "Exec" >/dev/null
+[ -x "$T15/aiOS/tools/run-tests.sh" ] && ok "run-tests.sh is executable on install" \
+  || bad "run-tests.sh is executable on install"
+[ -x "$T15/.claude/hooks/open-items-lane.py" ] && ok "hooks keep their executable bit" \
+  || bad "hooks keep their executable bit"
+[ -x "$T15/aiOS/tools/vault/vault_lib.py" ] && bad "a plain source file is not made executable" \
+  || ok "a plain source file is not made executable"
+chmod -x "$T15/aiOS/tools/run-tests.sh"
+before=$(shasum "$T15/aiOS/tools/run-tests.sh" | cut -d' ' -f1)
+out=$(inst --target "$T15" --plan)
+check "a lost bit is planned as CHMOD" "$(sect "$out" CHMOD "run-tests.sh")" "1"
+check "and not as CONFLICT or UPDATE" \
+  "$(sect "$out" CONFLICT "run-tests.sh")$(sect "$out" UPDATE "run-tests.sh")" "00"
+inst --target "$T15" --apply >/dev/null
+[ -x "$T15/aiOS/tools/run-tests.sh" ] && ok "apply restores the bit" || bad "apply restores the bit"
+check "CHMOD leaves the bytes alone" "$(shasum "$T15/aiOS/tools/run-tests.sh" | cut -d' ' -f1)" "$before"
+out=$(inst --target "$T15" --plan)
+check "and the next plan is clean" "$(sect "$out" CHMOD "")" "0"
+chmod +x "$T15/aiOS/tools/vault/vault_lib.py"
+out=$(inst --target "$T15" --plan)
+check "a bit the consumer added is not drift" "$(sect "$out" CHMOD "vault_lib.py")" "0"
+echo "# local edit" >> "$T15/aiOS/tools/wiki/wiki-sync.py"
+chmod -x "$T15/aiOS/tools/wiki/wiki-sync.py"
+out=$(inst --target "$T15" --plan)
+check "an edited script that lost its bit is CONFLICT and says so" \
+  "$(sect "$out" CONFLICT "wiki-sync.py.*not executable")" "1"
+# Git records only "executable or not"; group and other follow the consumer's umask.
+T15b=$(new_repo exec-umask)
+( umask 027 && inst --target "$T15b" --apply --project-name "Strict" >/dev/null )
+check "umask 027 installs scripts 750" \
+  "$(python3 -c "import os,sys;print(oct(os.stat(sys.argv[1]).st_mode&0o777))" "$T15b/aiOS/tools/run-tests.sh")" "0o750"
+out=$( umask 027 && inst --target "$T15b" --plan )
+check "and 750 is not drift" "$(sect "$out" CHMOD "")" "0"
+
+# ── 14. tracker hint ──────────────────────────────────────────
+head1 "14. tracker hint — no --tracker on a repo with a known origin says so"
+T16=$(new_repo hint-github)
+git -C "$T16" remote add origin git@github.com:acme/shop.git
+out=$(inst --target "$T16" --plan)
+grep -q "no tracker chosen.*--tracker github" <<<"$out" \
+  && ok "github origin suggests --tracker github" || bad "github origin suggests --tracker github"
+out=$(inst --target "$T16" --plan --tracker github)
+grep -q "no tracker chosen" <<<"$out" && bad "silent once a tracker is given" \
+  || ok "silent once a tracker is given"
+T17=$(new_repo hint-ado)
+git -C "$T17" remote add origin https://acme@dev.azure.com/acme/Cargo/_git/mobile
+out=$(inst --target "$T17" --plan)
+grep -q -- "--tracker ado --ado-org acme --ado-project Cargo --ado-repo mobile" <<<"$out" \
+  && ok "ado origin suggests the full ado flags" || bad "ado origin suggests the full ado flags"
+T16b=$(new_repo hint-fresh)
+git -C "$T16b" remote add origin git@github.com:acme/shop.git
+out=$(inst --target "$T16b" --plan)
+grep -q "Add --tracker github to this run" <<<"$out" \
+  && ok "before install, the hint says to add the flag" || bad "before install, the hint says to add the flag"
+out=$(inst --target "$T16b" --apply --project-name "Shop")
+grep -q "seeded, so a re-run will not write it.*agents.inspector.tracker = \"github\"" <<<"$out" \
+  && ok "after install, the hint names the config keys, not a re-run" \
+  || bad "after install, the hint names the config keys, not a re-run"
+hint_for () {
+  local d; d=$(new_repo "hint-$1"); git -C "$d" remote add origin "$2"
+  inst --target "$d" --plan --json | python3 -c "import json,sys;print(json.load(sys.stdin)['trackerHint'])"
+}
+check "ssh dev.azure.com, encoded project" \
+  "$(hint_for ssh 'git@ssh.dev.azure.com:v3/acme/Cargo%20App/mobile')" \
+  "--tracker ado --ado-org acme --ado-project 'Cargo App' --ado-repo mobile"
+check "https dev.azure.com, encoded project is decoded and quoted" \
+  "$(hint_for enc 'https://acme@dev.azure.com/acme/My%20Project/_git/mobile')" \
+  "--tracker ado --ado-org acme --ado-project 'My Project' --ado-repo mobile"
+check "visualstudio.com: the user name is not the org" \
+  "$(hint_for vsts 'https://someone@acme.visualstudio.com/DefaultCollection/Cargo/_git/mobile.git')" \
+  "--tracker ado --ado-org acme --ado-project Cargo --ado-repo mobile"
+check "vs-ssh.visualstudio.com" \
+  "$(hint_for vsssh 'acme@vs-ssh.visualstudio.com:v3/acme/Cargo/mobile')" \
+  "--tracker ado --ado-org acme --ado-project Cargo --ado-repo mobile"
+d=$(new_repo hint-json); git -C "$d" remote add origin git@github.com:acme/shop.git
+check "--json says flag before install" \
+  "$(inst --target "$d" --plan --json | python3 -c "import json,sys;j=json.load(sys.stdin);print(j['trackerHintVia'],repr(j['trackerHintConfig']))")" "flag ''"
+inst --target "$d" --apply --project-name "Shop" >/dev/null
+rm "$d/aiOS/.chiron-install.json"                              # adopt: config exists, no manifest
+check "--json says config, with the keys, once the config is seeded" \
+  "$(inst --target "$d" --plan --json | python3 -c "import json,sys;j=json.load(sys.stdin);print(j['mode'],j['trackerHintVia'],'agents.inspector.tracker = \"github\"' in j['trackerHintConfig'])")" "adopt config True"
+d=$(new_repo hint-adopt); git -C "$d" remote add origin git@github.com:acme/shop.git
+mkdir -p "$d/docs/vault/atlas" "$d/docs/vault/efforts"
+printf -- '---\ntitle: Note\n---\n\nA note.\n' > "$d/docs/vault/atlas/note.md"
+check "adopt with no aiOS/ yet is a flag case, not config" \
+  "$(inst --target "$d" --plan --json | python3 -c "import json,sys;j=json.load(sys.stdin);print(j['mode'],j['trackerHintVia'])")" "adopt flag"
+check "--apply --json is still a plan, so still flag" \
+  "$(inst --target "$d" --apply --json | python3 -c "import json,sys;print(json.load(sys.stdin)['trackerHintVia'])")" "flag"
+check "an unknown host suggests nothing" "$(hint_for gitlab 'https://gitlab.com/a/b.git')" ""
+T18=$(new_repo hint-none)
+out=$(inst --target "$T18" --plan)
+grep -q "no tracker chosen" <<<"$out" && bad "no origin, no hint" || ok "no origin, no hint"
+inst --target "$T16" --apply --project-name "Shop" >/dev/null
+out=$(inst --target "$T16" --plan)
+grep -q "no tracker chosen" <<<"$out" && bad "verify does not nag" || ok "verify does not nag"
 printf '\n\033[1mResult:\033[0m %d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ] || exit 1

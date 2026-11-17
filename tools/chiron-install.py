@@ -12,7 +12,8 @@ Four modes, detected from the target rather than passed in:
                                  add what's missing, upgrade what is provably pristine,
                                  report what the user changed, then record a manifest
   upgrade   manifest older     → apply migrations, then the same three-way diff
-  verify    manifest current   → report drift only; never write
+  verify    manifest current   → report drift; --apply writes only repairs that lose
+                                 nothing (CHMOD, a due directory move, the manifest)
 
 The three-way decision is the whole point. For each file we know: what is on disk, what
 chiron ships now, and what chiron shipped when this vault was installed. Without that
@@ -63,8 +64,13 @@ import argparse
 import hashlib
 import json
 import re
+import os
+import shlex
 import shutil
+import stat
+import subprocess
 import sys
+from urllib.parse import unquote
 from datetime import date
 from pathlib import Path
 
@@ -162,6 +168,66 @@ def available_modules() -> dict:
 
 TRACKERS = ("github", "ado")
 PR_CLIENT = "aiOS/tools/inspector/pr.py"
+
+
+# Azure DevOps remotes, most specific first. The org never contains `@`: in an https URL
+# whatever precedes `@` is the user name, not the org.
+ADO_REMOTES = (
+    r"(?:ssh\.dev\.azure\.com|vs-ssh\.visualstudio\.com):v3/([^/]+)/([^/]+)/([^/]+?)(?:\.git)?/?$",
+    r"dev\.azure\.com/([^/]+)/([^/]+)/_git/([^/]+?)(?:\.git)?/?$",
+    r"([^/.@:]+)\.visualstudio\.com/(?:DefaultCollection/)?([^/]+)/_git/([^/]+?)(?:\.git)?/?$",
+)
+
+
+def tracker_from_remote(url: str) -> dict:
+    """What a remote URL says about the tracker: {} for none, else tracker and (ado) board.
+
+    The parts are percent-decoded — an https remote spells a project with a space as
+    `My%20Project`, and the ADO client encodes the name itself, so passing it on encoded
+    names a project that does not exist.
+    """
+    if "github.com" in url:
+        return {"tracker": "github"}
+    for pattern in ADO_REMOTES:
+        m = re.search(pattern, url)
+        if m:
+            org, project, repo = (unquote(g) for g in m.groups())
+            return {"tracker": "ado", "org": org, "project": project, "repo": repo}
+    return {}
+
+
+def tracker_flags(found: dict) -> str:
+    if found.get("tracker") == "ado":
+        return ("--tracker ado --ado-org " + shlex.quote(found["org"]) +
+                " --ado-project " + shlex.quote(found["project"]) +
+                " --ado-repo " + shlex.quote(found["repo"]))
+    return f"--tracker {found['tracker']}" if found else ""
+
+
+def tracker_config(found: dict) -> str:
+    """The `aios.config.json` keys that turn the tracker on, for a config already seeded."""
+    keys = (f'agents.inspector.tracker = "{found["tracker"]}", '
+            f'agents.inspector.scripts = ["{PR_CLIENT}"]')
+    if found.get("tracker") == "ado":
+        keys += ", " + json.dumps({"ado": {"org": found["org"], "project": found["project"],
+                                           "repoName": found["repo"]}})
+    return keys
+
+
+def tracker_hint(target: Path) -> dict:
+    """What the repo's `origin` suggests for `--tracker`, or {} when it suggests nothing.
+
+    Without a tracker the inspector's PR mode is off, and once `aios.config.json` is seeded
+    the installer never rewrites it — re-running with the flag only reports it under
+    REVIEW. So a run that would go ahead with none says what `origin` points at: a hint,
+    never a default, since a repo can live on GitHub and still want no PR reviews.
+    """
+    try:
+        url = subprocess.run(["git", "-C", str(target), "remote", "get-url", "origin"],
+                             capture_output=True, text=True, timeout=10).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        return {}
+    return tracker_from_remote(url)
 
 
 def inspector_tokens(tracker: str, ado: dict) -> dict:
@@ -330,6 +396,35 @@ def content_for(item: Item, tokens: dict) -> bytes:
     return raw
 
 
+EXEC_BITS = 0o111
+
+
+def lost_exec(src: Path, dest: Path) -> bool:
+    """Whether `dest` is not executable although its payload source is.
+
+    `write_bytes` creates a file with the default mode, so before this check every
+    shipped script landed non-executable and `aiOS/tools/run-tests.sh` failed with
+    "permission denied". Git records only "executable or not", so the owner's bit is the
+    whole question: group and other follow the consumer's umask (0750 under umask 027 is
+    a correct install, not drift). A file chiron ships plain is never drift either.
+    """
+    return bool(src.stat().st_mode & stat.S_IXUSR) and not dest.stat().st_mode & stat.S_IXUSR
+
+
+def current_umask() -> int:
+    mask = os.umask(0)
+    os.umask(mask)
+    return mask
+
+
+def copy_exec(src: Path, dest: Path) -> None:
+    """Make `dest` executable when its source is, as far as the umask allows — the bits
+    a fresh `git checkout` of the same file would get. Never removes a bit."""
+    if src.stat().st_mode & stat.S_IXUSR:
+        add = (EXEC_BITS & ~current_umask()) | stat.S_IXUSR
+        dest.chmod(dest.stat().st_mode | add)
+
+
 def build_plan(target: Path, vault_prefix: str, tokens: dict, briefing: str,
                manifest: dict, hashes: dict, mapping: dict) -> tuple[list[dict], list[dict]]:
     """Returns (actions, migrations_to_apply)."""
@@ -385,6 +480,10 @@ def build_plan(target: Path, vault_prefix: str, tokens: dict, briefing: str,
 
         have_sha = sha(dest.read_bytes())
         if have_sha == want_sha:
+            if lost_exec(item.abs_src, dest):               # right bytes, wrong mode
+                actions.append(dict(action="chmod", dest=dest_rel, src=item.src,
+                                    cls=item.cls, sha=have_sha,
+                                    note="executable upstream — content untouched"))
             continue                                        # already exactly what we ship
 
         if item.cls == "seeded":
@@ -402,6 +501,10 @@ def build_plan(target: Path, vault_prefix: str, tokens: dict, briefing: str,
             why = ("matches a previously shipped version"
                    if pristine else "matches no version chiron ever shipped")
 
+        if not pristine and lost_exec(item.abs_src, dest):
+            # Left alone like every conflict, but said: an edited script that will not run
+            # is a second, separate surprise.
+            why += "; also not executable (chmod u+x to fix)"
         actions.append(dict(
             action="update" if pristine else "conflict",
             dest=dest_rel, src=item.src, cls=item.cls,
@@ -565,12 +668,15 @@ def apply_plan(target: Path, vault_prefix: str, tokens: dict, briefing: str,
             data = content_for(item, tokens)
             dest.parent.mkdir(parents=True, exist_ok=True)
             dest.write_bytes(data)
+            copy_exec(item.abs_src, dest)
             entry = dict(sha256=sha(data), shipped=version(), cls=item.cls, src=item.src)
             if a["dest"] != item.dest:
                 # Record the local name so every later upgrade follows it rather than
                 # re-adding the file under the name chiron ships.
                 entry["installedAs"] = a["dest"]
             files[item.dest] = entry
+        elif a["action"] == "chmod":
+            copy_exec(by_src[a["src"]].abs_src, dest)
         elif a["action"] == "retire":
             dest.unlink(missing_ok=True)
             files.pop(a["dest"], None)
@@ -628,7 +734,7 @@ def detect_mode(target: Path, vault_prefix: str, manifest: dict) -> str:
 
 
 def report(mode: str, actions: list[dict], migrations: list[dict], applied: bool) -> int:
-    order = ["move", "blocked", "add", "update", "conflict", "review", "retire", "keep"]
+    order = ["move", "blocked", "add", "update", "chmod", "conflict", "review", "retire", "keep"]
     groups = {k: [a for a in actions if a["action"] == k] for k in order}
 
     verb = "Applied" if applied else "Plan"
@@ -654,6 +760,7 @@ def report(mode: str, actions: list[dict], migrations: list[dict], applied: bool
         "blocked": "BLOCKED   (old and new directory both hold files — not moved)",
         "add": "ADD       (missing here)",
         "update": "UPDATE    (pristine — safe to overwrite)",
+        "chmod": "CHMOD     (executable bit missing — mode only)",
         "conflict": "CONFLICT  (you edited it — left alone)",
         "review": "REVIEW    (seeded — yours; upstream differs)",
         "retire": "RETIRE    (deleted upstream, pristine here)",
@@ -804,8 +911,31 @@ def main() -> int:
                   [dict(a, action="conflict", note="present upstream, missing here")
                    for a in actions if a["action"] == "add"]
 
+    # Not on verify: a current install has already had this choice put to it once.
+    found = tracker_hint(target) if not tracker and mode != "verify" else {}
+    hint = tracker_flags(found)
+    # The flag only reaches a config this run is about to ADD; once one is seeded, an
+    # upgrade reports it under REVIEW and never writes it, so a re-run turns nothing on.
+    seeding = any(a["action"] == "add" and a["dest"] == "aiOS/aios.config.json"
+                  for a in actions)
+    # --json returns before anything is applied, so `--apply --json` is still a plan.
+    applying = args.apply and not args.json
+    via = "" if not found else ("flag" if seeding and not applying else "config")
+    hint_text = ""
+    if found:
+        how = (f"Add {hint} to this run to turn PR reviews on"
+               if via == "flag" else
+               f"aiOS/aios.config.json is seeded, so a re-run will not write it. Set "
+               f"{tracker_config(found)} there to turn PR reviews on")
+        hint_text = (f"⚠ no tracker chosen, so the inspector's PR mode stays off. origin "
+                     f"suggests: {hint}\n  {how}, or ignore this to keep session-only reviews.")
+
     if args.json:
-        print(json.dumps({"chironVersion": version(), "mode": mode,
+        print(json.dumps({"chironVersion": version(), "mode": mode, "trackerHint": hint,
+                          # "flag": pass trackerHint on this run. "config": the config is
+                          # already seeded, so set trackerHintConfig in it instead.
+                          "trackerHintVia": via,
+                          "trackerHintConfig": tracker_config(found) if via == "config" else "",
                           "vaultRoot": vault_prefix.rstrip("/") or ".",
                           "tokens": tokens, "migrations": migrations,
                           "actions": actions}, indent=2))
@@ -837,9 +967,14 @@ def main() -> int:
                 legacy.unlink(missing_ok=True)
         rc = report(mode, actions, migrations, applied=True)
         print(f"✓ manifest written: {mpath.relative_to(target)}")
+        if hint_text:
+            print(hint_text)
         return rc
 
-    return report(mode, actions, migrations, applied=False)
+    rc = report(mode, actions, migrations, applied=False)
+    if hint_text:
+        print(hint_text)
+    return rc
 
 
 if __name__ == "__main__":

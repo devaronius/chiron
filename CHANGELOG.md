@@ -48,6 +48,31 @@ unit** — `VERSION` covers everything under `aiOS/`, `seeds/`, `skills/` and `h
   `aios.config.json`). Module tests ship as `aiOS/tools/vault/tests/test_archive_module.py`. First built in the
   Catharina Gilde Helmond vault.
 
+### Fixed
+
+- **Installed scripts keep their executable bit.** The installer wrote every file with
+  `write_bytes`, so `aiOS/tools/run-tests.sh`, `wiki-sync.py`, `verify-claims.py` and the
+  executable hooks all landed mode 644 — `aiOS/tools/run-tests.sh` failed with "permission
+  denied". ADD and UPDATE now make a file executable when its source is, as far as the
+  consumer's umask allows (0750 under umask 027, as `git checkout` would), and a new
+  **CHMOD** bucket repairs an existing install whose bytes are right but whose
+  owner-execute bit is missing. Bits are only ever added. An edited script that lost its
+  bit stays CONFLICT, and its note says it is not executable. `verify --apply` can
+  therefore change a mode; the docs no longer say verify never writes.
+- **A stale `bootstrap-vault` skill no longer runs a newer installer's install.** The skill
+  arrives through the plugin cache, which updates separately from `~/.chiron`; a 3.0.0
+  skill installed 3.0.1 without the tracker question. Step 1 now diffs the skill against the
+  payload's copy and, when they differ, follows the payload's instead.
+- **The installer says when it is installing without a tracker.** On install, adopt and
+  upgrade with no `--tracker`, it reads `origin` and prints the flags it suggests
+  (`--tracker github`, or `--tracker ado` with org, project and repo filled in — decoded
+  and shell-quoted, from https, ssh and visualstudio.com remotes), so a missed interview
+  question surfaces in the plan instead of in a hand-edited config. Once `aios.config.json`
+  is seeded a re-run will not write it, so from then on the hint names the config keys to
+  set instead of the flag. `--json` carries the flags as `trackerHint`, which case applies
+  as `trackerHintVia` (`flag` | `config`), and the keys as `trackerHintConfig`;
+  `bootstrap-vault` Step 4 follows the same split.
+
 ## [3.0.1] — 2026-11-07
 
 Fixes from the QA pass on 3.0.0.
