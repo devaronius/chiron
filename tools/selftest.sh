@@ -106,7 +106,7 @@ done
 # Run them in the INSTALLED tree, not chiron's — that is the copy that has to work, and a
 # suite that only passes upstream is the failure this assertion exists to catch.
 out=$( cd "$T" && bash aiOS/tools/run-tests.sh 2>&1 )
-grep -q "all 4 suites pass" <<<"$out" && ok "every shipped suite passes where installed" \
+grep -q "all 5 suites pass" <<<"$out" && ok "every shipped suite passes where installed" \
                                       || { bad "every shipped suite passes where installed"; printf '%s\n' "$out" | tail -12; }
 
 # ── 2. idempotence ────────────────────────────────────────────

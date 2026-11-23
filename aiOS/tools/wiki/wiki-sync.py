@@ -22,6 +22,7 @@ locations are resolved relative to the vault root, so it runs from any working d
 Usage:
   python3 aiOS/tools/wiki/wiki-sync.py            # check; exits 1 if drift is found
   python3 aiOS/tools/wiki/wiki-sync.py --update   # re-snapshot the manifest (new baseline)
+  python3 aiOS/tools/wiki/wiki-sync.py --update --force   # baseline even with uncompiled NEW / NOT RECONCILED sources
   python3 aiOS/tools/wiki/wiki-sync.py --quiet    # only print the summary line
 """
 from __future__ import annotations
@@ -149,6 +150,9 @@ def main() -> int:
         allow_abbrev=False, description="Check vault sources against the compiled wiki.")
     ap.add_argument("-u", "--update", action="store_true",
                     help="Re-snapshot the manifest to the current vault state (new baseline).")
+    ap.add_argument("--force", action="store_true",
+                    help="With --update: baseline even while NEW sources no wiki note cites, or NOT "
+                         "RECONCILED sources, remain (e.g. calendar notes deliberately left uncovered).")
     ap.add_argument("-q", "--quiet", action="store_true", help="Print only the summary line.")
     args = ap.parse_args()
 
@@ -169,6 +173,23 @@ def main() -> int:
     first_run = not MANIFEST.exists()
 
     if args.update:
+        # The baseline means "this is compiled". A NEW source that no wiki note cites was
+        # never compiled, and a NOT RECONCILED one was not re-read; baselining either hides
+        # it from every later run. Seen in a consumer repo: the report still listed
+        # "NEW (needs a wiki note) (30)" and --update ran anyway. The first run is exempt —
+        # it has nothing to baseline against.
+        if not first_run and not args.force:
+            new_uncited = [k for k in new if not notes_for(k, cover)]
+            stale = unreconciled(changed, cover, CATALOG)
+            if new_uncited or stale:
+                print("✗ Refusing --update: the wiki does not reflect these sources yet.")
+                for k in new_uncited:
+                    print(f"  NEW, no wiki note cites it: {k}")
+                for source, note in stale:
+                    print(f"  NOT RECONCILED: {source} → {note}")
+                print("  Compile them (a new wiki page also needs its catalog row: coverage comes only\n"
+                      "  from the catalog's sources[]), or pass --force if leaving them uncovered is deliberate.")
+                return 1
         MANIFEST.write_text(json.dumps(
             {"generated": datetime.date.today().isoformat(), "files": current},
             indent=2, sort_keys=True) + "\n")
