@@ -140,3 +140,4 @@ The `aliases[]` field carries the alternate names/spellings of the note's subjec
 - Touch only `wiki/**` (notes + catalog) and the manifest via `--update`. Never edit files under `vault/**`.
 - Keep notes short and single-purpose — if a note grows long or covers two ideas, split it.
 - Don't run `--update` until the wiki actually reflects the sources; the baseline is "this is compiled", not "I saw the change".
+- `--update` refuses while a NEW source is cited by no wiki note or a source is NOT RECONCILED. Coverage comes only from the catalog's `sources[]`, so a new wiki page needs its catalog row. Pass `--force` only when leaving a source uncovered is deliberate (a calendar entry with nothing doc-worthy), and say so in your report.

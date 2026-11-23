@@ -50,6 +50,11 @@ unit** — `VERSION` covers everything under `aiOS/`, `seeds/`, `skills/` and `h
 
 ### Fixed
 
+- **`wiki-sync.py --update` baselined sources the wiki did not reflect.** It now refuses
+  while a NEW source is cited by no wiki note, or a CHANGED source is NOT RECONCILED, and
+  lists them; `--force` baselines anyway (calendar notes left uncovered on purpose). The
+  first run stays exempt. Seen in a consumer repo: the report listed "NEW (needs a wiki
+  note) (30)" and `--update` ran anyway.
 - **Installed scripts keep their executable bit.** The installer wrote every file with
   `write_bytes`, so `aiOS/tools/run-tests.sh`, `wiki-sync.py`, `verify-claims.py` and the
   executable hooks all landed mode 644 — `aiOS/tools/run-tests.sh` failed with "permission
